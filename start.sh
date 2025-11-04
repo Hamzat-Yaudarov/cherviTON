@@ -5,7 +5,8 @@ echo "🚀 Starting deployment..."
 
 # Install Python dependencies
 echo "📦 Installing Python dependencies..."
-pip install -r backend/requirements.txt
+python3 -m pip install --upgrade pip
+python3 -m pip install -r backend/requirements.txt
 
 # Install Node dependencies for frontend
 echo "📦 Installing Node dependencies..."
@@ -26,12 +27,12 @@ export WEB_APP_URL="${WEB_APP_URL:-http://localhost:${PORT:-8000}}"
 # Start the FastAPI server
 echo "✅ Starting FastAPI server..."
 cd backend
-python -m uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000} &
+python3 -m uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000} &
 SERVER_PID=$!
 
 # Start the Telegram bot
 echo "✅ Starting Telegram bot..."
-python telegram_bot.py &
+python3 telegram_bot.py &
 BOT_PID=$!
 
 # Wait for both processes
