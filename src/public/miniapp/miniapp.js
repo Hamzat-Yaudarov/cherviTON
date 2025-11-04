@@ -290,10 +290,25 @@
     // start local leave timer for 5 minutes
     startLeaveTimer(5 * 60 * 1000);
 
+    // responsive canvas sizing
+    function resizeCanvasToContainer() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const targetWidth = Math.max(300, rect.width);
+      const targetHeight = Math.max(200, window.innerHeight - (document.querySelector('.miniapp-header')?.getBoundingClientRect().height || 80) - 40);
+      canvas.style.width = targetWidth + 'px';
+      canvas.style.height = targetHeight + 'px';
+      canvas.width = Math.floor(targetWidth * dpr);
+      canvas.height = Math.floor(targetHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resizeCanvasToContainer();
+    window.addEventListener('resize', resizeCanvasToContainer);
+
     ws.addEventListener('open', ()=> console.log('ws open'));
     ws.addEventListener('message', evt => {
       try { const data = JSON.parse(evt.data); if (data.type === 'state') state = data; }
-      catch(e){console.error(e);} 
+      catch(e){console.error(e);}
     });
 
     // Input handling
@@ -312,6 +327,8 @@
   }
 
   function renderLoop() {
+    // prevent touch dragging to scroll the container
+    try { canvas.style.touchAction = 'none'; canvas.ontouchstart = e=>e.preventDefault(); } catch(e){}
     if (state) {
       // clear
       ctx.fillStyle = '#071024';

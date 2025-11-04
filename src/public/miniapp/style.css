@@ -1,28 +1,37 @@
 * { box-sizing: border-box; font-family: Arial, Helvetica, sans-serif; }
-body { margin: 0; background: #0b1020; color: #fff; }
-.miniapp-root { max-width: 1220px; margin: 0 auto; padding: 12px; }
-.miniapp-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
-.player-nick { font-weight:700; font-size:18px; }
-.player-balance { font-size:16px; }
-.player-balance button { margin-left:8px; padding:6px 8px; border-radius:6px; border:none; background:#1e90ff; color:#fff; cursor:pointer; }
-.lobby { display:flex; gap:20px; align-items:center; }
-.stake-selection { background:#0f1724; padding:12px; border-radius:8px; }
-.stakes { display:flex; gap:8px; margin-top:8px; }
+body { margin: 0; background: #0b1020; color: #fff; -webkit-text-size-adjust:100%; }
+.miniapp-root { width:100%; max-width:1220px; margin: 0 auto; padding: 12px; box-sizing:border-box; }
+.miniapp-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; gap:12px; flex-wrap:wrap; }
+.player-nick { font-weight:700; font-size:18px; word-break:break-word; }
+.player-balance { font-size:16px; display:flex; align-items:center; gap:8px; }
+.player-balance button { margin-left:0; padding:6px 8px; border-radius:6px; border:none; background:#1e90ff; color:#fff; cursor:pointer; }
+.lobby { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.stake-selection { background:#0f1724; padding:12px; border-radius:8px; flex:1 1 200px; }
+.stakes { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
 .stake { background:#1f2937; color:#fff; border:none; padding:8px 12px; border-radius:6px; cursor:pointer; }
 .stake.active { background:#10b981; }
-.controls { display:flex; gap:8px; }
+.controls { display:flex; gap:8px; flex-wrap:wrap; }
 .primary { padding:10px 14px; background:#06b6d4; color:#022; border:none; border-radius:8px; cursor:pointer; font-weight:700; }
 .primary.play { background:#ef4444; color:#fff; }
-.game-area { margin-top:12px; }
-canvas { background: #071024; display:block; border-radius:8px; max-width:100%; }
+.game-area { margin-top:12px; width:100%; overflow:hidden; }
+canvas { background: #071024; display:block; border-radius:8px; width:100%; height:auto; touch-action:none; }
 
-.modal { position:fixed; left:0; top:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); }
-.modal-content { background:#081226; padding:18px; border-radius:8px; width:320px; }
+.modal { position:fixed; left:0; top:0; right:0; bottom:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.6); z-index:1000; }
+.modal-content { background:#081226; padding:18px; border-radius:8px; width:320px; max-width:92%; box-sizing:border-box; }
 .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 .modal button { padding:8px 10px; border-radius:6px; border:none; cursor:pointer; }
 .modal input { padding:8px; border-radius:6px; border:1px solid #334; }
 
+/* prevent page from zooming/scrolling inside Telegram WebApp */
+html, body { height:100%; overflow:hidden; }
+.miniapp-main { overflow:hidden; }
+
 @media (max-width: 800px) {
   .miniapp-root { padding:8px; }
-  canvas { width: 100%; height: auto; }
+  .player-nick { font-size:16px; }
+  .player-balance { font-size:14px; }
+  .modal-content { padding:14px; }
+  /* Make canvas take available vertical space */
+  .game-area { margin-top:8px; }
+  canvas { border-radius:6px; }
 }
