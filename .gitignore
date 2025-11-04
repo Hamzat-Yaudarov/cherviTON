@@ -1,1 +1,35 @@
 .config/
+
+# Environment variables - Never commit .env files
+.env
+.env.local
+.env.*.local
+
+# Node dependencies
+node_modules/
+frontend/node_modules/
+frontend/yarn-error.log
+frontend/build/
+
+# Python artifacts
+backend/__pycache__/
+backend/*.pyc
+backend/.pytest_cache/
+backend/.venv/
+backend/venv/
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
