@@ -20,8 +20,8 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install curl for node installation
-RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
+# Install curl and supervisor for process management
+RUN apt-get update && apt-get install -y curl supervisor && rm -rf /var/lib/apt/lists/*
 
 # Copy backend requirements
 COPY backend/requirements.txt .
@@ -41,17 +41,15 @@ COPY --from=frontend-builder /app/frontend/build/ ./backend/public/
 # Verify build exists
 RUN ls -la ./backend/public/ && test -f ./backend/public/index.html || (echo "ERROR: Frontend build not found at ./backend/public/!" && ls -la ./backend/ && exit 1)
 
+# Copy supervisord configuration
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
 # Expose port
 EXPOSE ${PORT:-8000}
-
-# Set working directory to backend
-WORKDIR /app/backend
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8000}/').read()" || exit 1
 
-# Start FastAPI server on main process, Telegram bot in background
-CMD python3 -m uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000} & \
-    python3 telegram_bot.py & \
-    wait
+# Start supervisord to manage both FastAPI and Telegram bot processes
+CMD ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
