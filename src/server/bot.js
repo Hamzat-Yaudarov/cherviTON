@@ -36,7 +36,7 @@ bot.onText(/\/start/, async msg => {
   bot.sendMessage(chatId, text, opts).catch(err => {
     console.error('Failed to send /start reply (web_app), falling back to url', err);
     // fallback to url if web_app is not supported
-    const url = `${webAppUrl}?telegram_id=${encodeURIComponent(telegram_id)}&username=${encodeURIComponent(username)}`;
+    const url = webAppUrl; // do not include query params — Telegram Web App provides initData inside the WebView
     const fallback = { reply_markup: { inline_keyboard: [[{ text: 'Начать игру', url }]] } };
     bot.sendMessage(chatId, text, fallback).catch(e => console.error('Failed fallback send', e));
   });
