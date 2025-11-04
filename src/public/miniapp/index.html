@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>MiniApp - Cherviton</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="miniapp-root">
+    <header class="miniapp-header">
+      <div class="player-nick" id="playerNick">Player</div>
+      <div class="player-balance" id="playerBalance">TON: 0 <button id="balanceBtn">Пополнить</button></div>
+    </header>
+
+    <main class="miniapp-main">
+      <section class="lobby">
+        <div class="stake-selection">
+          <label class="label">Выберите ставку:</label>
+          <div class="stakes" id="stakes">
+            <button data-stake="1" class="stake">1 TON</button>
+            <button data-stake="3" class="stake">3 TON</button>
+            <button data-stake="5" class="stake">5 TON</button>
+            <button data-stake="10" class="stake">10 TON</button>
+          </div>
+        </div>
+        <div class="controls">
+          <button id="connectWallet" class="primary">Подключить кошелек</button>
+          <button id="playBtn" class="primary play">Играть</button>
+        </div>
+      </section>
+
+      <section class="game-area" id="gameArea" style="display:none;">
+        <canvas id="gameCanvas" width="1200" height="800"></canvas>
+      </section>
+    </main>
+
+    <div id="modal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <h3 id="modalTitle">Пополнение баланса</h3>
+        <p id="modalBody">Для пополнения вы должны подключить Telegram-кошелек. В демо режиме — имитация.</p>
+        <div class="modal-actions">
+          <button id="modalClose">Закрыть</button>
+          <button id="modalTopup">Пополнить 10 TON (демо)</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="miniapp.js"></script>
+</body>
+</html>
