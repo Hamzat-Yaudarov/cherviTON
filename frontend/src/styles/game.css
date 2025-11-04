@@ -1,0 +1,157 @@
+.game-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: #0f0f0f;
+  overflow: hidden;
+}
+
+.game-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  gap: 12px;
+  z-index: 10;
+}
+
+.game-stats {
+  display: flex;
+  gap: 20px;
+  flex: 1;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+
+.stat-value {
+  font-size: 18px;
+  font-weight: bold;
+  color: #00ff00;
+}
+
+.btn-exit {
+  padding: 8px 16px;
+  font-size: 14px;
+  background: rgba(255, 0, 0, 0.1);
+  border: 1px solid rgba(255, 0, 0, 0.3);
+  color: #ff6b6b;
+  border-radius: 8px;
+}
+
+.btn-exit:hover {
+  background: rgba(255, 0, 0, 0.2);
+  border-color: rgba(255, 0, 0, 0.5);
+}
+
+.game-canvas-wrapper {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+}
+
+.game-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.game-loading, .game-over-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.8);
+  gap: 16px;
+  z-index: 100;
+  animation: fadeIn 0.3s ease;
+}
+
+.game-loading .spinner {
+  width: 50px;
+  height: 50px;
+}
+
+.game-loading p {
+  font-size: 16px;
+  color: #aaa;
+}
+
+.game-over-screen h2 {
+  font-size: 40px;
+  margin-bottom: 16px;
+  color: #ff6b6b;
+}
+
+.game-over-score {
+  font-size: 24px;
+  font-weight: bold;
+  color: #ffd700;
+  margin-bottom: 24px;
+}
+
+.game-over-screen .btn-primary {
+  padding: 14px 32px;
+  font-size: 16px;
+}
+
+.game-controls {
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.5);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  text-align: center;
+}
+
+.controls-info {
+  font-size: 13px;
+  color: #888;
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .game-header {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+
+  .game-stats {
+    gap: 12px;
+  }
+
+  .stat-value {
+    font-size: 16px;
+  }
+
+  .btn-exit {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+
+  .game-controls {
+    padding: 10px 12px;
+  }
+
+  .controls-info {
+    font-size: 12px;
+  }
+}
