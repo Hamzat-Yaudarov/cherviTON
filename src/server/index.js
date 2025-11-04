@@ -64,6 +64,15 @@ async function start() {
     }
   });
 
+  // Config endpoint: return game address (safe to expose)
+  app.get('/api/ton/config', async (req, res) => {
+    try {
+      res.json({ gameAddress: process.env.GAME_TON_ADDRESS || null });
+    } catch (e) {
+      res.status(500).json({ error: 'internal' });
+    }
+  });
+
   // Check deposits to the game address from a player's wallet since a timestamp
   app.post('/api/ton/check_deposit', async (req, res) => {
     try {

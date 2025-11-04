@@ -1,8 +1,13 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-const connectionString = process.env.NEON_CONNECTION;
-
+let connectionString = process.env.NEON_CONNECTION || '';
+// Normalize if provided as: psql 'postgresql://...'
+if (connectionString && connectionString.startsWith('psql')) {
+  const m = connectionString.match(/psql\s+['"]([^'"]+)['"]/);
+  if (m && m[1]) connectionString = m[1];
+}
+connectionString = connectionString.trim();
 if (!connectionString) {
   console.warn('NEON_CONNECTION not set; database features will fail.');
 }

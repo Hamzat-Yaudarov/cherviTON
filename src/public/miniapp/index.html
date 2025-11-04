@@ -38,17 +38,22 @@
     <div id="modal" class="modal" style="display:none;">
       <div class="modal-content">
         <h3 id="modalTitle">Пополнение баланса</h3>
-        <p id="modalBody">Для пополнения вы должны подключить Telegram-кошелек. В демо режиме — имитация.</p>
+        <p id="modalBody">Для пополнения вы должны подключить Telegram-кошелек. Выберите сумму и нажмите "Оплатить через кошелек".</p>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+          <input id="topupAmount" type="number" step="0.1" min="0.1" placeholder="Сумма в TON" style="padding:8px;border-radius:6px;border:1px solid #223;flex:1;" />
+          <button id="topupPreset10" class="primary">10 TON</button>
+        </div>
         <div class="modal-actions">
           <button id="modalClose">Закрыть</button>
           <button id="modalCheck">Проверить перевод</button>
+          <button id="modalPay">Оплатить через кошелек</button>
           <button id="modalTopup">Пополнить 10 TON (демо)</button>
         </div>
       </div>
     </div>
 
   </div>
-  <script src="https://unpkg.com/@tonconnect/sdk@1/dist/tonconnect.umd.js"></script>
+  <script src="https://unpkg.com/@tonconnect/ui@latest/dist/tonconnect-ui.min.js"></script>
   <div id="walletModal" class="modal" style="display:none;">
     <div class="modal-content">
       <h3>Подключить кошелек</h3>

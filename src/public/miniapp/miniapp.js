@@ -17,9 +17,28 @@
   const modal = qs('#modal');
   const modalClose = qs('#modalClose');
   const modalTopup = qs('#modalTopup');
+  const modalCheckBtn = qs('#modalCheck');
+  const modalPayBtn = qs('#modalPay');
+  const topupAmountInput = qs('#topupAmount');
+  const topupPreset10 = qs('#topupPreset10');
   const gameArea = qs('#gameArea');
   const canvas = qs('#gameCanvas');
   const ctx = canvas.getContext('2d');
+
+  // TonConnect UI initialization and game address
+  let tonConnectUI = null;
+  let gameAddress = null;
+  (async function initTonConnect(){
+    try {
+      const cfg = await fetch('/api/ton/config').then(r=>r.json());
+      gameAddress = cfg && cfg.gameAddress;
+      if (window.TON_CONNECT_UI) {
+        try {
+          tonConnectUI = new window.TON_CONNECT_UI.TonConnectUI({ manifestUrl: '/miniapp/manifest.json' });
+        } catch(e) { console.warn('TonConnectUI init failed', e); tonConnectUI = null; }
+      }
+    } catch(e) { console.error('initTonConnect error', e); }
+  })();
 
   let selectedStake = 1;
   let balance = 0;
@@ -71,13 +90,14 @@
   const modalCheck = qs('#modalCheck');
   modalCheck.addEventListener('click', async () => {
     // Check on-chain if user transferred to GAME_TON_ADDRESS
-    if (!connectedWalletAddress) {
+    const fromAddr = connectedWalletAddress || manualAddressInput.value && manualAddressInput.value.trim();
+    if (!fromAddr) {
       alert('Сначала подключите кошелек или укажите адрес вручную.');
       return;
     }
     try {
-      const since = Date.now() - 10 * 60 * 1000; // check last 10 minutes
-      const res = await fetch('/api/ton/check_deposit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ from: connectedWalletAddress, since }) });
+      const since = Date.now() - 60 * 60 * 1000; // check last 60 minutes
+      const res = await fetch('/api/ton/check_deposit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ from: fromAddr, since }) });
       const j = await res.json();
       const found = (j && j.found) || [];
       if (found.length === 0) {
@@ -118,28 +138,35 @@
       connectWalletBtn.disabled = true;
       qs('#walletModal').style.display = 'none';
     } else {
-      alert('Введите адрес или используйте TonConnect');
+      alert('Введите адрес или и��пользуйте TonConnect');
     }
   });
 
   tcConnectBtn.addEventListener('click', async ()=>{
-    if (!window.TonConnect) {
-      alert('TonConnect SDK не загружен. Попробуйте ввести адрес вручную.');
+    if (!tonConnectUI && !window.TonConnect && !window.tonConnect) {
+      alert('TonConnect UI/SDK не загружен. Попробуйте ввести адрес вручную.');
       return;
     }
     try {
-      const manifestUrl = window.location.origin + '/miniapp/manifest.json';
-      window.tonConnect = window.tonConnect || new window.TonConnect({ manifestUrl });
-      const result = await window.tonConnect.connect();
-      if (result && result.account) {
-        connectedWalletAddress = result.account;
-      } else if (result && result.accounts && result.accounts.length) {
-        connectedWalletAddress = result.accounts[0];
+      let result = null;
+      if (tonConnectUI && tonConnectUI.connect) {
+        try { result = await tonConnectUI.connect(); } catch(e) { /* ignore */ }
       }
-      if (connectedWalletAddress) {
+      if (!result && window.tonConnect && window.tonConnect.connect) {
+        try {
+          const manifestUrl = window.location.origin + '/miniapp/manifest.json';
+          window.tonConnect = window.tonConnect || new window.TonConnect({ manifestUrl });
+          result = await window.tonConnect.connect();
+        } catch(e) { /* ignore */ }
+      }
+      const addr = (result && (result.account || (result.accounts && result.accounts[0]))) || null;
+      if (addr) {
+        connectedWalletAddress = addr;
         connectWalletBtn.textContent = `Кошелек: ${connectedWalletAddress.slice(0,6)}...${connectedWalletAddress.slice(-6)}`;
         connectWalletBtn.disabled = true;
         qs('#walletModal').style.display = 'none';
+      } else {
+        alert('Кошелек подключён, но адрес не получен. Используйте проверку перевода вручную.');
       }
     } catch (e) {
       console.error(e);
@@ -152,6 +179,54 @@
     e.target.classList.add('active');
     selectedStake = Number(e.target.dataset.stake);
   }));
+
+  // topup preset
+  topupPreset10 && topupPreset10.addEventListener('click', ()=>{ topupAmountInput.value = '10'; });
+
+  // initiate payment via TonConnect UI
+  modalPayBtn && modalPayBtn.addEventListener('click', async ()=>{
+    const amount = Number(topupAmountInput.value || 0);
+    if (!amount || amount <= 0) { alert('Введите корректную сумму'); return; }
+    if (!gameAddress) { alert('Адрес приёма не настроен на сервере'); return; }
+    const nano = String(Math.round(amount * 1e9));
+    const tx = { validUntil: Math.floor(Date.now()/1000) + 120, messages: [{ address: gameAddress, amount: nano }] };
+    try {
+      if (tonConnectUI && tonConnectUI.sendTransaction) {
+        await tonConnectUI.sendTransaction(tx);
+      } else if (window.tonConnect && window.tonConnect.sendTransaction) {
+        await window.tonConnect.sendTransaction(tx);
+      } else {
+        alert('TonConnect не доступен в этом окружении.');
+        return;
+      }
+      alert('Транзакция инициирована. Пожал��йста подождите — начнётся проверка поступления.');
+      const fromAddr = connectedWalletAddress || manualAddressInput.value && manualAddressInput.value.trim();
+      if (!fromAddr) { alert('Не удалось определить адрес отправителя. Используйте кнопку "Проверить перевод" после отправки.'); return; }
+      let foundTotal = 0;
+      const since = Date.now() - 60 * 60 * 1000;
+      for (let i=0;i<12;i++) {
+        await new Promise(r=>setTimeout(r,5000));
+        try {
+          const res = await fetch('/api/ton/check_deposit', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ from: fromAddr, since }) });
+          const j = await res.json();
+          const found = (j && j.found) || [];
+          if (found.length>0) {
+            foundTotal = found.reduce((s,f)=>s+(f.value||0),0);
+            const res2 = await fetch(`/api/player/${encodeURIComponent(telegram_id)}/topup`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: foundTotal }) });
+            const j2 = await res2.json();
+            if (j2 && j2.balance !== undefined) setBalance(Number(j2.balance));
+            alert(`Найдено и зачислено ${foundTotal} TON`);
+            break;
+          }
+        } catch(e){ console.error('poll error', e); }
+      }
+      if (foundTotal===0) alert('Платёж не найден — попробуйте позже или нажмите "Проверить перевод"');
+    } catch(e) {
+      console.error('send tx error', e);
+      alert('Ошибка при отправке транзакции');
+    }
+    modal.style.display = 'none';
+  });
 
   playBtn.addEventListener('click', async () => {
     // Must have wallet connected in this demo
