@@ -291,7 +291,7 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
         const url = `${process.env.WEB_APP_URL}?username=${encodeURIComponent(username)}`;
         await createUserIfNotExists(username);
         await ctx.reply('Добро пожаловать! Нажмите кнопку, чтобы открыть мини-игру.', Markup.inlineKeyboard([
-          Markup.button.webApp('Начать игру', {url})
+          Markup.button.webApp('Начать игру', url)
         ]));
       });
       // basic command to check balance
@@ -300,8 +300,27 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
         const user = await createUserIfNotExists(username);
         await ctx.reply(`Ваш баланс: ${user.balance} TON`);
       });
-      bot.launch();
-      console.log('Telegram bot started');
+      // Try starting bot with polling; if polling is disabled on the Telegram side (409), fallback to webhook
+      try{
+        await bot.launch();
+        console.log('Telegram bot started (polling)');
+      }catch(err){
+        console.warn('Bot polling failed, attempting webhook mode:', err && err.description ? err.description : err.message || err);
+        try{
+          const webUrlRaw = process.env.WEB_APP_URL;
+          if(!webUrlRaw) throw new Error('WEB_APP_URL not set, cannot configure webhook');
+          const webUrl = webUrlRaw.startsWith('http') ? webUrlRaw : `https://${webUrlRaw}`;
+          const hookPath = '/telegram-webhook';
+          // set express route to handle webhook
+          app.use(bot.webhookCallback(hookPath));
+          const full = `${webUrl}${hookPath}`;
+          await bot.telegram.setWebhook(full);
+          console.log('Telegram webhook set to', full);
+        }catch(inner){
+          console.error('Failed to set webhook for Telegram bot:', inner);
+        }
+      }
+      console.log('Telegram bot setup complete');
     }catch(err){console.error('bot err',err)}
   } else {
     console.warn('TELEGRAM_BOT_TOKEN not set, bot disabled');
