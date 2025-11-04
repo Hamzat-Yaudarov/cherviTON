@@ -310,25 +310,56 @@ async def shutdown():
 
 # Serve React frontend static files
 frontend_build_dir = Path(__file__).parent / "public"
+
+# Log frontend directory status
 if frontend_build_dir.exists():
-    logger.info(f"Frontend build directory found at: {frontend_build_dir}")
-    app.mount("/static", StaticFiles(directory=str(frontend_build_dir / "static")), name="static")
+    logger.info(f"✅ Frontend build directory found at: {frontend_build_dir}")
+    logger.info(f"   Contents: {list(frontend_build_dir.iterdir())[:5]}")  # Log first 5 items
+
+    # Mount static files
+    static_dir = frontend_build_dir / "static"
+    if static_dir.exists():
+        app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+        logger.info(f"✅ Static files mounted from: {static_dir}")
+    else:
+        logger.warning(f"⚠️  Static directory not found at: {static_dir}")
+
+    # Serve index.html on root
+    @app.get("/")
+    async def serve_index():
+        """Serve React app root"""
+        index_file = frontend_build_dir / "index.html"
+        if index_file.exists():
+            logger.info(f"Serving index.html from {index_file}")
+            return FileResponse(index_file)
+        raise HTTPException(status_code=404, detail="index.html not found")
 
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
-        """Serve React app for all non-API routes"""
+        """Serve React app for all non-API/WS routes"""
+        # Don't intercept API and WebSocket routes
         if full_path.startswith("api/") or full_path.startswith("ws/"):
             raise HTTPException(status_code=404, detail="Not found")
 
+        # Try to serve static file
         file_path = frontend_build_dir / full_path
-        if file_path.is_file():
-            return FileResponse(file_path)
+        try:
+            # Resolve paths to check if file is within frontend_build_dir
+            if file_path.is_file() and str(file_path.resolve()).startswith(str(frontend_build_dir.resolve())):
+                logger.debug(f"Serving file: {full_path}")
+                return FileResponse(file_path)
+        except Exception as e:
+            logger.debug(f"Error serving file {full_path}: {e}")
 
         # Return index.html for all other routes (SPA routing)
         index_file = frontend_build_dir / "index.html"
         if index_file.exists():
+            logger.debug(f"Serving SPA route: {full_path} -> index.html")
             return FileResponse(index_file)
 
-        raise HTTPException(status_code=404, detail="Frontend not found")
+        logger.warning(f"File not found: {full_path}")
+        raise HTTPException(status_code=404, detail="Frontend file not found")
 else:
-    logger.warning(f"Frontend build directory not found at: {frontend_build_dir}")
+    logger.error(f"❌ Frontend build directory NOT FOUND at: {frontend_build_dir}")
+    logger.error(f"   Current directory: {Path(__file__).parent}")
+    logger.error(f"   Available directories: {list(Path(__file__).parent.iterdir())}")
