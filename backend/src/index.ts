@@ -49,17 +49,27 @@ process.on('SIGINT', () => {
 async function startServer() {
   try {
     logger.info('Initializing database...');
-    await initializeDatabase();
-    logger.info('Database initialized');
+    try {
+      await initializeDatabase();
+      logger.info('Database initialized');
+    } catch (dbError) {
+      logger.warn('Database initialization failed, continuing without DB', dbError);
+      // Don't exit - API can still work even if DB is temporarily unavailable
+    }
 
     const port = parseInt(process.env.PORT || '8080');
-    
+
     httpServer.listen(port, '0.0.0.0', () => {
       logger.info(`Server listening on port ${port}`);
     });
 
     // Start Telegram bot
-    await startBot();
+    try {
+      await startBot();
+    } catch (botError) {
+      logger.warn('Telegram bot initialization failed', botError);
+      // Continue - bot can fail but server should keep running
+    }
   } catch (error) {
     logger.error('Failed to start server', error);
     process.exit(1);

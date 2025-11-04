@@ -1,10 +1,18 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import { logger } from '../utils/logger.js';
 
 dotenv.config();
 
+const dbUrl = process.env.DATABASE_URL;
+logger.info(`Connecting to database: ${dbUrl ? 'URL is set' : 'URL is NOT set!'}`);
+
+if (!dbUrl) {
+  logger.error('DATABASE_URL environment variable is not set!');
+}
+
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
+  connectionString: dbUrl,
 });
 
 export async function query(text: string, params?: unknown[]) {
