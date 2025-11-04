@@ -1,13 +1,8 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-let connectionString = process.env.NEON_CONNECTION || '';
-// Normalize if provided as: psql 'postgresql://...'
-if (connectionString && connectionString.startsWith('psql')) {
-  const m = connectionString.match(/psql\s+['"]([^'"]+)['"]/);
-  if (m && m[1]) connectionString = m[1];
-}
-connectionString = connectionString.trim();
+const connectionString = process.env.NEON_CONNECTION;
+
 if (!connectionString) {
   console.warn('NEON_CONNECTION not set; database features will fail.');
 }
@@ -23,7 +18,7 @@ async function initDb() {
         telegram_id TEXT UNIQUE NOT NULL,
         username TEXT NOT NULL,
         balance NUMERIC DEFAULT 0,
-        wallet_address TEXT,
+        wallet_address TEXT UNIQUE,
         created_at TIMESTAMP DEFAULT now()
       );
     `);
@@ -33,6 +28,16 @@ async function initDb() {
         id SERIAL PRIMARY KEY,
         room_id TEXT NOT NULL,
         started_at TIMESTAMP DEFAULT now()
+      );
+    `);
+
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS processed_txs (
+        id SERIAL PRIMARY KEY,
+        tx_hash TEXT UNIQUE NOT NULL,
+        telegram_id TEXT,
+        amount NUMERIC,
+        created_at TIMESTAMP DEFAULT now()
       );
     `);
   } finally {
@@ -46,8 +51,8 @@ async function getOrCreatePlayer(telegram_id, username) {
     const res = await client.query('SELECT * FROM players WHERE telegram_id = $1', [telegram_id]);
     if (res.rows.length) return res.rows[0];
     const insert = await client.query(
-      'INSERT INTO players (telegram_id, username, balance) VALUES ($1, $2, $3) RETURNING *',
-      [telegram_id, username, 0]
+      'INSERT INTO players (telegram_id, username, balance, wallet_address) VALUES ($1, $2, $3, $4) RETURNING *',
+      [telegram_id, username, 0, null]
     );
     return insert.rows[0];
   } finally {
@@ -78,7 +83,7 @@ async function updatePlayerBalance(telegram_id, balance) {
   }
 }
 
-async function updatePlayerWallet(telegram_id, wallet_address) {
+async function linkPlayerWallet(telegram_id, wallet_address) {
   const client = await pool.connect();
   try {
     const res = await client.query(
@@ -91,4 +96,24 @@ async function updatePlayerWallet(telegram_id, wallet_address) {
   }
 }
 
-module.exports = { pool, initDb, getOrCreatePlayer, getPlayerByTelegramId, updatePlayerBalance, updatePlayerWallet };
+async function processedTxExists(txHash) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query('SELECT id FROM processed_txs WHERE tx_hash = $1', [txHash]);
+    return res.rows.length > 0;
+  } finally {
+    client.release();
+  }
+}
+
+async function saveProcessedTx(txHash, telegram_id, amount) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query('INSERT INTO processed_txs (tx_hash, telegram_id, amount) VALUES ($1, $2, $3) RETURNING *', [txHash, telegram_id, amount]);
+    return res.rows[0];
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { pool, initDb, getOrCreatePlayer, getPlayerByTelegramId, updatePlayerBalance, linkPlayerWallet, processedTxExists, saveProcessedTx };

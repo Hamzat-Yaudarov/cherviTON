@@ -19,6 +19,11 @@ async function start() {
   // Serve miniapp static
   app.use('/miniapp', express.static(path.join(__dirname, '..', 'public', 'miniapp')));
 
+  // expose GAME_TON_ADDRESS via a small endpoint for client-side
+  app.get('/api/config', (req, res) => {
+    res.json({ GAME_TON_ADDRESS: process.env.GAME_TON_ADDRESS || null });
+  });
+
   // Simple API to get or create player based on telegram_id and username
   app.get('/api/player', async (req, res) => {
     try {
@@ -49,44 +54,6 @@ async function start() {
     }
   });
 
-  // TON API endpoints: check balance and deposits
-  const { getAddressBalance, findDepositsFrom } = require('./tonApi');
-
-  app.get('/api/ton/balance', async (req, res) => {
-    try {
-      const address = req.query.address;
-      if (!address) return res.status(400).json({ error: 'address required' });
-      const balance = await getAddressBalance(address);
-      res.json({ address, balance });
-    } catch (e) {
-      console.error('api ton balance error', e.message);
-      res.status(500).json({ error: 'internal' });
-    }
-  });
-
-  // Config endpoint: return game address (safe to expose)
-  app.get('/api/ton/config', async (req, res) => {
-    try {
-      res.json({ gameAddress: process.env.GAME_TON_ADDRESS || null });
-    } catch (e) {
-      res.status(500).json({ error: 'internal' });
-    }
-  });
-
-  // Check deposits to the game address from a player's wallet since a timestamp
-  app.post('/api/ton/check_deposit', async (req, res) => {
-    try {
-      const from = req.body.from;
-      const since = Number(req.body.since || 0);
-      if (!from) return res.status(400).json({ error: 'from required' });
-      const found = await findDepositsFrom(from, since);
-      res.json({ found });
-    } catch (e) {
-      console.error('api ton check_deposit error', e.message);
-      res.status(500).json({ error: 'internal' });
-    }
-  });
-
   // Place a bet (stake) to join a game: deduct stake from player's balance
   app.post('/api/player/:telegram_id/bet', async (req, res) => {
     try {
@@ -106,6 +73,82 @@ async function start() {
     }
   });
 
+  // Link Telegram player with wallet address (TonConnect)
+  app.post('/api/player/:telegram_id/link_wallet', async (req, res) => {
+    try {
+      const telegram_id = req.params.telegram_id;
+      const wallet_address = req.body.wallet_address;
+      if (!telegram_id || !wallet_address) return res.status(400).json({ error: 'invalid' });
+      const player = await getPlayerByTelegramId(telegram_id);
+      if (!player) return res.status(404).json({ error: 'not_found' });
+      const updated = await require('./db').linkPlayerWallet(telegram_id, wallet_address);
+      res.json({ success: true, wallet_address: updated.wallet_address });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'internal' });
+    }
+  });
+
+  // Report transaction: client sends txHash after sending TON to GAME_TON_ADDRESS
+  app.post('/api/player/:telegram_id/report_tx', async (req, res) => {
+    try {
+      const telegram_id = req.params.telegram_id;
+      const txHash = req.body.txHash;
+      if (!telegram_id || !txHash) return res.status(400).json({ error: 'invalid' });
+      const db = require('./db');
+      const player = await getPlayerByTelegramId(telegram_id);
+      if (!player) return res.status(404).json({ error: 'not_found' });
+
+      // Check idempotency
+      const exists = await db.processedTxExists(txHash);
+      if (exists) return res.status(400).json({ error: 'tx_already_processed' });
+
+      const TONAPI_KEY = process.env.TONAPI_KEY;
+      const GAME_TON_ADDRESS = process.env.GAME_TON_ADDRESS;
+      if (!TONAPI_KEY || !GAME_TON_ADDRESS) return res.status(500).json({ error: 'server_misconfigured' });
+
+      // Fetch transaction from tonapi
+      const url = `https://tonapi.io/v2/blockchain/transactions/${encodeURIComponent(txHash)}`;
+      const apiRes = await fetch(url, { headers: { Authorization: `Bearer ${TONAPI_KEY}` } });
+      if (!apiRes.ok) return res.status(400).json({ error: 'tx_not_found' });
+      const data = await apiRes.json();
+
+      // Parse transaction details
+      const tx = data.transaction || data;
+      const status = tx.status || (tx.transaction && tx.transaction.status) || null;
+
+      // Locate in_msg
+      const inMsg = (tx.in_msg) || (tx.transaction && tx.transaction.in_msg) || null;
+      const fromAddr = inMsg && (inMsg.source && inMsg.source.address || inMsg.source) || null;
+      const toAddr = inMsg && (inMsg.destination && inMsg.destination.address || inMsg.destination) || null;
+      const value = inMsg && (inMsg.value || inMsg.value) || 0;
+
+      // Basic validation
+      if (String(status).toLowerCase() !== 'success') return res.status(400).json({ error: 'tx_not_success' });
+
+      // Accept match if from and to match either friendly forms or substrings
+      const matchesFrom = fromAddr && String(fromAddr).toLowerCase().includes(String(player.wallet_address || '').toLowerCase());
+      const matchesTo = toAddr && String(toAddr).toLowerCase().includes(String(GAME_TON_ADDRESS).toLowerCase());
+
+      if (!matchesFrom || !matchesTo) {
+        return res.status(400).json({ error: 'tx_address_mismatch', details: { fromAddr, toAddr, expectedFrom: player.wallet_address, expectedTo: GAME_TON_ADDRESS } });
+      }
+
+      // Value: assume TON has 9 decimals (nano)
+      const amountTon = Number(value) / 1e9;
+      if (!amountTon || amountTon <= 0) return res.status(400).json({ error: 'tx_value_invalid' });
+
+      // credit player balance
+      const newBal = await updatePlayerBalance(telegram_id, Number(player.balance || 0) + amountTon);
+      await db.saveProcessedTx(txHash, telegram_id, amountTon);
+
+      res.json({ success: true, credited: amountTon, balance: Number(newBal.balance) });
+    } catch (err) {
+      console.error('report_tx error', err);
+      res.status(500).json({ error: 'internal' });
+    }
+  });
+
   const server = http.createServer(app);
 
   // Init WebSocket game server
@@ -114,32 +157,6 @@ async function start() {
   server.listen(PORT, () => {
     console.log(`Server listening on port ${PORT}`);
     console.log(`MiniApp available at ${WEB_APP_URL || `http://localhost:${PORT}`}/miniapp/index.html`);
-  });
-
-  // Debug endpoint to receive TonConnect results from client (for debugging only)
-  app.post('/api/debug/tonconnect', async (req, res) => {
-    try {
-      console.log('TonConnect debug from client:', { body: req.body });
-      // Optionally, store in DB or forward to Sentry
-      res.json({ ok: true });
-    } catch (e) {
-      console.error('Failed debug tonconnect', e);
-      res.status(500).json({ ok: false });
-    }
-  });
-
-  // Save wallet address for player
-  app.post('/api/player/:telegram_id/wallet', async (req, res) => {
-    try {
-      const telegram_id = req.params.telegram_id;
-      const address = req.body.address;
-      if (!telegram_id || !address) return res.status(400).json({ error: 'invalid' });
-      const updated = await updatePlayerWallet(telegram_id, address);
-      res.json({ success: true, wallet_address: updated.wallet_address });
-    } catch (e) {
-      console.error('Failed save wallet', e);
-      res.status(500).json({ error: 'internal' });
-    }
   });
 
   // Start Telegram bot
