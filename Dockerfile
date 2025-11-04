@@ -35,8 +35,8 @@ RUN python3 -m pip install --no-cache-dir -r requirements.txt
 # Copy backend code
 COPY backend/ ./backend/
 
-# Copy frontend build from builder stage
-COPY --from=frontend-builder /app/frontend/build ./backend/build
+# Copy frontend build from builder stage (copy to /app for correct structure)
+COPY --from=frontend-builder /app/frontend/build /app/frontend/build
 
 # Expose port
 EXPOSE ${PORT:-8000}

@@ -13,9 +13,9 @@ echo "📦 Installing Node dependencies..."
 cd frontend
 yarn install --production=false
 
-# Build frontend - set backend URL to current domain
+# Build frontend - set backend URL to relative path (same domain)
 echo "🏗️ Building frontend..."
-export REACT_APP_BACKEND_URL="${REACT_APP_BACKEND_URL:-.}"
+export REACT_APP_BACKEND_URL="${REACT_APP_BACKEND_URL:-/}"
 yarn build
 
 # Return to root

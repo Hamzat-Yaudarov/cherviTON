@@ -106,7 +106,10 @@ const Game = () => {
   };
 
   const connectWebSocket = (uid) => {
-    const wsUrl = `wss://tele-game-worms.preview.emergentagent.com/ws/game/${roomId}/${uid}`;
+    // Build WebSocket URL based on current domain
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/ws/game/${roomId}/${uid}`;
     const ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
