@@ -22,9 +22,23 @@ export async function initDb(){
       id bigserial PRIMARY KEY,
       username text UNIQUE NOT NULL,
       balance numeric DEFAULT 0,
+      wallet_address text,
+      created_at timestamptz DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS transactions (
+      id bigserial PRIMARY KEY,
+      user_id bigint REFERENCES users(id),
+      amount numeric NOT NULL,
+      type text NOT NULL,
+      meta jsonb,
       created_at timestamptz DEFAULT now()
     );
   `);
+}
+
+export async function poolQuery(q, params){
+  if(!pool) await initDb();
+  return pool.query(q, params);
 }
 
 export async function createUserIfNotExists(username){
@@ -45,9 +59,14 @@ export async function updateUserBalance(username, delta){
   if(!pool) await initDb();
   // atomic update
   const res = await pool.query(`UPDATE users SET balance = balance + $1 WHERE username=$2 RETURNING *`, [delta, username]);
-  if(res.rows[0]) return res.rows[0];
+  if(res.rows[0]){
+    // record transaction asynchronously
+    recordTransaction(username, delta, delta>=0 ? 'credit' : 'debit').catch(()=>{});
+    return res.rows[0];
+  }
   // if user not exists create with delta
   const created = await pool.query('INSERT INTO users (username, balance) VALUES ($1, $2) RETURNING *', [username, delta]);
+  recordTransaction(username, delta, delta>=0 ? 'credit' : 'debit').catch(()=>{});
   return created.rows[0];
 }
 
@@ -70,4 +89,18 @@ export async function transferBalance(fromUser, toUser, amount){
     await client.query('ROLLBACK');
     throw err;
   }finally{client.release();}
+}
+
+export async function setWalletAddress(username, wallet){
+  if(!pool) await initDb();
+  await pool.query('UPDATE users SET wallet_address=$1 WHERE username=$2', [wallet, username]);
+  return (await getUserByUsername(username));
+}
+
+export async function recordTransaction(username, amount, type='credit', meta=null){
+  if(!pool) await initDb();
+  const user = await getUserByUsername(username);
+  if(!user) throw new Error('user not found');
+  const res = await pool.query('INSERT INTO transactions (user_id, amount, type, meta) VALUES ($1,$2,$3,$4) RETURNING *', [user.id, amount, type, meta]);
+  return res.rows[0];
 }

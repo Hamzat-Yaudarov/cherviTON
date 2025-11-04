@@ -44,11 +44,21 @@
   }
   fetchUser();
 
-  connectWalletBtn.addEventListener('click', ()=>{
-    // simulate wallet connection
+  connectWalletBtn.addEventListener('click', async ()=>{
+    // simulate wallet connection and register wallet server-side
+    const wallet = 'ton_' + Math.random().toString(36).slice(2,10);
     connectedWallet = true;
-    connectWalletBtn.textContent = 'Кошелёк подключён';
+    connectWalletBtn.textContent = 'Кошелёк: ' + wallet.slice(0,8) + '...';
     connectWalletBtn.disabled = true;
+    try{
+      // Prefer TON Connect API (simulated)
+      await fetch('/api/ton/connect', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, wallet, proof: 'simulated'})});
+      const info = await fetch(`/api/wallet/info?username=${encodeURIComponent(username)}`).then(r=>r.json());
+      balance = Number(info.balance || 0);
+      playerBalanceEl.textContent = 'TON: ' + balance;
+    }catch(err){
+      console.error('wallet connect err', err);
+    }
   });
 
   playerBalanceEl.addEventListener('click', ()=>{
@@ -62,13 +72,17 @@
   topupBtn.addEventListener('click', async ()=>{
     const amt = Number(topupAmount.value || 0);
     if(!amt || amt<=0) return alert('Введите сумму');
-    // in real life we would trigger TON wallet transfer. Here we simulate: backend credits balance
-    const res = await fetch('/api/deposit', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, amount: amt})});
-    const data = await res.json();
-    if(data.ok){
-      await fetchUser();
-      topupMenu.classList.add('hidden');
-    } else alert('Ошибка пополнения');
+    try{
+      // in production, open TON wallet and wait for on-chain transfer; here simulate server notification
+      const res = await fetch('/api/wallet/deposit_notify', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({username, amount: amt})});
+      const data = await res.json();
+      if(data.ok){
+        await fetchUser();
+        topupMenu.classList.add('hidden');
+      } else alert('Ошибка пополнения');
+    }catch(err){
+      alert('Ошибка сети');
+    }
   });
 
   playBtn.addEventListener('click', ()=>{

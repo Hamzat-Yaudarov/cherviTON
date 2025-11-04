@@ -5,7 +5,7 @@ import { WebSocketServer } from 'ws';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import { Telegraf, Markup } from 'telegraf';
-import { initDb, getUserByUsername, createUserIfNotExists, updateUserBalance, transferBalance } from '../db/client.js';
+import { initDb, getUserByUsername, createUserIfNotExists, updateUserBalance, transferBalance, setWalletAddress, recordTransaction } from '../db/client.js';
 
 const app = express();
 app.use(cors());
@@ -70,11 +70,11 @@ function initGameLoop() {
           if(Math.hypot(dx,dy) < 10){
             // head-on between heads
             if(k===0){
+              // head-on collision: per rules larger dies when head-on
               if(a.length > b.length){
-                // b dies
-                handleDeath(bName);
-              } else if(a.length < b.length){
                 handleDeath(aName);
+              } else if(a.length < b.length){
+                handleDeath(bName);
               } else {
                 // equal - both die
                 handleDeath(aName);
@@ -127,11 +127,26 @@ async function handleDeath(username){
   const p = GAME.players.get(username);
   if(!p || !p.alive) return;
   p.alive = false;
-  // spawn foods along body
-  for (const seg of p.snake){
-    spawnFood(seg.x, seg.y, 1);
+  // spawn foods along body, distributing pot (TON) if present
+  const body = p.snake || [];
+  const segCount = Math.max(1, body.length);
+  let pot = p.pot || 0;
+  if(pot > 0){
+    const base = Math.floor(pot / segCount);
+    let rem = pot - base * segCount;
+    for(let i=0;i<segCount;i++){
+      const seg = body[i] || {x: Math.random()*900+50, y: Math.random()*400+50};
+      const val = base + (rem>0 ? 1 : 0);
+      if(rem>0) rem--;
+      if(val>0) spawnFood(seg.x, seg.y, val);
+    }
+  } else {
+    for (const seg of body){
+      spawnFood(seg.x, seg.y, 1);
+    }
   }
-  // update DB: no immediate transfers here; transfers happen when collected
+  p.pot = 0;
+  // update DB: transfers happen when collected via food collection logic
 }
 
 wss.on('connection', (ws, req)=>{
@@ -162,6 +177,7 @@ wss.on('connection', (ws, req)=>{
           length: 10 + Math.floor(Math.random()*10),
           alive: true,
           color: randColor(),
+          pot: bet || 0,
         };
         GAME.players.set(username, player);
         initGameLoop();
@@ -205,6 +221,60 @@ app.post('/api/deposit', async (req,res)=>{
   const amt = Number(amount);
   if(isNaN(amt) || amt<=0) return res.status(400).json({error:'invalid amount'});
   await updateUserBalance(username, amt);
+  res.json({ok:true});
+});
+
+// Wallet connect endpoints (simulation). For production integrate TON Connect / Telegram Wallet verification.
+app.post('/api/wallet/connect', async (req,res)=>{
+  const { username, wallet } = req.body;
+  if(!username || !wallet) return res.status(400).json({error:'username and wallet required'});
+  await createUserIfNotExists(username);
+  await setWalletAddress(username, wallet);
+  res.json({ok:true});
+});
+
+app.get('/api/wallet/info', async (req,res)=>{
+  const username = String(req.query.username||'').trim();
+  if(!username) return res.status(400).json({error:'username required'});
+  const user = await getUserByUsername(username);
+  res.json({wallet: user ? user.wallet_address : null, balance: user ? Number(user.balance) : 0});
+});
+
+// In production this endpoint should be called after on-chain transfer verification (webhook) or by signed proof from wallet
+app.post('/api/wallet/deposit_notify', async (req,res)=>{
+  const { username, amount } = req.body;
+  if(!username || !amount) return res.status(400).json({error:'username and amount required'});
+  const amt = Number(amount);
+  if(isNaN(amt) || amt<=0) return res.status(400).json({error:'invalid amount'});
+  await updateUserBalance(username, amt);
+  res.json({ok:true});
+});
+
+// TON Connect simulation endpoints
+app.post('/api/ton/connect', async (req,res)=>{
+  // Expected: { username, wallet, proof }
+  const { username, wallet, proof } = req.body;
+  if(!username || !wallet) return res.status(400).json({error:'username and wallet required'});
+  // In real implementation verify proof using TON libs; here we accept as simulation
+  await createUserIfNotExists(username);
+  await setWalletAddress(username, wallet);
+  await recordTransaction(username, 0, 'wallet_connect', {wallet, proof});
+  res.json({ok:true, wallet});
+});
+
+app.post('/api/ton/deposit_webhook', async (req,res)=>{
+  // Expected: { wallet, amount, external_tx_id }
+  const { wallet, amount, external_tx_id } = req.body;
+  if(!wallet || !amount) return res.status(400).json({error:'wallet and amount required'});
+  // Find user by wallet
+  const { poolQuery } = await import('../db/client.js');
+  const q = await poolQuery("SELECT username FROM users WHERE wallet_address=$1", [wallet]).catch(()=>null);
+  const username = q && q.rows && q.rows[0] ? q.rows[0].username : null;
+  if(!username) return res.status(404).json({error:'user not found'});
+  const amt = Number(amount);
+  if(isNaN(amt) || amt<=0) return res.status(400).json({error:'invalid amount'});
+  await updateUserBalance(username, amt);
+  await recordTransaction(username, amt, 'deposit_onchain', {external_tx_id});
   res.json({ok:true});
 });
 
