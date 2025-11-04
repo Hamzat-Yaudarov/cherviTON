@@ -289,23 +289,31 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
       function sanitizeWebAppUrl(raw){
         if(!raw) return '';
         let s = String(raw).trim();
-        // remove wrapping quotes
-        if((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))){
-          s = s.slice(1,-1);
-        }
-        // remove trailing commas
-        s = s.replace(/,\s*$/,'');
-        s = s.trim();
+        // remove all quotes and control characters, then trailing commas/spaces
+        s = s.replace(/["'\n\r\t]/g,'').replace(/,\s*$/,'').trim();
         return s;
       }
 
       bot.start(async (ctx)=>{
         const username = ctx.from.username || ctx.from.first_name || ('user'+ctx.from.id);
         const rawWeb = sanitizeWebAppUrl(process.env.WEB_APP_URL || '');
-        const webAppBase = rawWeb || '';
-        const url = `${webAppBase}${webAppBase.includes('?') ? '&' : '?'}username=${encodeURIComponent(username)}`;
+        if(!rawWeb){
+          await ctx.reply('Ошибка: WEB_APP_URL не настроен.');
+          return;
+        }
+        // normalize to full URL
+        const base = rawWeb.startsWith('http') ? rawWeb : `https://${rawWeb}`;
+        let url;
+        try{
+          const urlObj = new URL(base);
+          urlObj.searchParams.set('username', username);
+          url = urlObj.toString();
+        }catch(e){
+          // fallback simple concatenation
+          url = `${base}${base.includes('?') ? '&' : '?'}username=${encodeURIComponent(username)}`;
+        }
         await createUserIfNotExists(username);
-        await ctx.reply('Добро пожаловать! Нажмите кнопку, чтобы открыть мини-игру.', Markup.inlineKeyboard([
+        await ctx.reply('Добро пожаловать! Нажмите кнопку, чтобы отк��ыть мини-игру.', Markup.inlineKeyboard([
           Markup.button.webApp('Начать игру', url)
         ]));
       });
@@ -327,9 +335,15 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
           const webUrl = webUrlRaw.startsWith('http') ? webUrlRaw : `https://${webUrlRaw}`;
           const hookPath = '/telegram-webhook';
           // mount webhook route explicitly
-          app.post(hookPath, express.json(), (req,res,next)=> bot.webhookCallback(hookPath)(req,res).catch(next));
-          // ensure no duplicated slashes
-          const full = webUrl.endsWith('/') ? webUrl.slice(0,-1) + hookPath : webUrl + hookPath;
+          app.post(hookPath, express.json(), bot.webhookCallback(hookPath));
+          // build full webhook URL using URL constructor to avoid malformed strings
+          let full;
+          try{
+            const u = new URL(hookPath, webUrl);
+            full = u.toString();
+          }catch(e){
+            full = (webUrl.endsWith('/') ? webUrl.slice(0,-1) : webUrl) + hookPath;
+          }
           await bot.telegram.setWebhook(full);
           console.log('Telegram webhook set to', full);
         }catch(inner){
