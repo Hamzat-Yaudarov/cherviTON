@@ -16,7 +16,7 @@ function createRoom() {
     id,
     players: new Map(), // telegram_id -> player
     balls: [],
-    startedAt: Date.now(),
+    startedAt: null,
     createdAt: Date.now(),
     lockedUntil: null
   };
@@ -70,10 +70,14 @@ function initGameServer(server) {
       canLeaveAt: null
     };
 
-    // prevent leaving for 5 minutes after game start
-    player.canLeaveAt = Date.now() + 5 * 60 * 1000;
-
     room.players.set(telegram_id, player);
+
+    // If room is newly started, set startedAt and prevent leaving for 5 minutes from start
+    if (!room.startedAt) {
+      room.startedAt = Date.now();
+    }
+    const leaveLock = (room.startedAt || Date.now()) + 5 * 60 * 1000;
+    for (const p of room.players.values()) p.canLeaveAt = leaveLock;
 
     ws.on('message', message => {
       let data;
@@ -86,21 +90,18 @@ function initGameServer(server) {
         // change direction
         player.dir = Number(data.dir) || player.dir;
       }
-      if (data.type === 'collect') {
-        // client claims it collected a ball; server should verify, but we accept here for simplicity
-        const amount = Number(data.amount || 0);
-        if (amount > 0) {
-          player.balance += amount;
-          // persist balance asynchronously
-          updatePlayerBalance(player.id, player.balance).catch(err => console.error('Failed saving balance', err));
-        }
-      }
     });
 
     ws.on('close', () => {
-      // keep the player in room until they are allowed to leave; if still within 5 minutes, mark disconnected but keep data
       const p = room.players.get(telegram_id);
-      if (p) p.ws = null; // mark disconnected
+      if (!p) return;
+      // If leave lock expired, remove player from room, else mark disconnected and keep data
+      if (Date.now() >= (p.canLeaveAt || 0)) {
+        room.players.delete(telegram_id);
+      } else {
+        p.ws = null;
+        p.disconnectedAt = Date.now();
+      }
     });
 
     // send initial handshake
@@ -206,5 +207,16 @@ function killPlayer(room, player) {
   player.balance = Math.max(0, (player.balance || 0) - valuePerBall * totalBalls);
   updatePlayerBalance(player.id, player.balance).catch(err => console.error('Failed saving balance', err));
 }
+
+// Periodic cleanup: remove empty rooms older than 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [id, room] of Array.from(rooms.entries())) {
+    const activePlayers = Array.from(room.players.values()).filter(p => p.ws || (!p.ws && Date.now() < (p.canLeaveAt || 0)) );
+    if (activePlayers.length === 0 && (now - room.createdAt) > 10 * 60 * 1000) {
+      rooms.delete(id);
+    }
+  }
+}, 60 * 1000);
 
 module.exports = { initGameServer };
