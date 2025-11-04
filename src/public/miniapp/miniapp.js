@@ -68,7 +68,7 @@
       gameAddress = cfg && cfg.gameAddress;
       if (window.TON_CONNECT_UI) {
         try {
-          tonConnectUI = new window.TON_CONNECT_UI.TonConnectUI({ manifestUrl: '/miniapp/manifest.json' });
+          tonConnectUI = new window.TON_CONNECT_UI.TonConnectUI({ manifestUrl: '/miniapp/tonconnect-manifest.json' });
         } catch(e) { console.warn('TonConnectUI init failed', e); tonConnectUI = null; }
       }
     } catch(e) { console.error('initTonConnect error', e); }
@@ -136,7 +136,7 @@
     // Check on-chain if user transferred to GAME_TON_ADDRESS
     const fromAddr = connectedWalletAddress || manualAddressInput.value && manualAddressInput.value.trim();
     if (!fromAddr) {
-      alert('Сначала подключите кошелек или укажите адрес вручную.');
+      alert('Сначала подключите кошеле�� или укажите адрес вручную.');
       return;
     }
     try {
