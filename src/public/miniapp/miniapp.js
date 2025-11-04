@@ -189,28 +189,59 @@
   }
 
   async function connectViaTonConnect() {
-    if (!tonConnectUI && !window.TonConnect && !window.tonConnect) {
-      alert('TonConnect UI/SDK не загружен. Попробуйте ввести адрес вручную.');
+    // ensure SDK present
+    if (!window.TonConnect && !window.TON_CONNECT_UI) {
+      alert('TonConnect SDK не загружен. Попробуйте ещё раз.');
       return;
     }
+
     try {
+      // create connector if missing
+      if (!window.tonConnector) {
+        const manifestUrl = '/miniapp/tonconnect-manifest.json';
+        try { window.tonConnector = new window.TonConnect({ manifestUrl }); } catch(e) { console.warn('TonConnect ctor failed', e); }
+      }
+
       let result = null;
-      if (tonConnectUI && tonConnectUI.connect) {
-        try { result = await tonConnectUI.connect(); } catch(e) { /* ignore */ }
-      }
-      if (!result && window.tonConnect && window.tonConnect.connect) {
+      try {
+        if (window.tonConnector && window.tonConnector.connect) {
+          result = await window.tonConnector.connect();
+        }
+      } catch(e){ console.warn('tonConnector.connect error', e); }
+
+      // Try TonConnectUI as fallback
+      if ((!result || !result.account) && window.TON_CONNECT_UI) {
         try {
-          const manifestUrl = window.location.origin + '/miniapp/manifest.json';
-          window.tonConnect = window.tonConnect || new window.TonConnect({ manifestUrl });
-          result = await window.tonConnect.connect();
-        } catch(e) { /* ignore */ }
+          const ui = new window.TON_CONNECT_UI.TonConnectUI({ manifestUrl: '/miniapp/tonconnect-manifest.json' });
+          result = await ui.connect();
+        } catch(e){ console.warn('TonConnectUI connect failed', e); }
       }
-      const addr = (result && (result.account || (result.accounts && result.accounts[0]))) || null;
+
+      // Normalize address extraction
+      let addr = null;
+      try {
+        if (result) {
+          // result may contain account or wallet or accounts
+          addr = result.account || (result.wallet && (result.wallet.account || result.wallet.address)) || (result.accounts && result.accounts[0]);
+          if (typeof addr === 'object' && addr.address) addr = addr.address;
+        }
+        // also try connector.account property
+        if (!addr && window.tonConnector && window.tonConnector.account) {
+          addr = window.tonConnector.account && (window.tonConnector.account.address || window.tonConnector.account);
+        }
+      } catch(e){ console.warn('extract addr error', e); }
+
       if (addr) {
         connectedWalletAddress = addr;
         connectWalletBtn.textContent = `Кошелек: ${connectedWalletAddress.slice(0,6)}...${connectedWalletAddress.slice(-6)}`;
         connectWalletBtn.disabled = true;
         qs('#walletModal').style.display = 'none';
+
+        // persist to server
+        try {
+          await fetch(`/api/player/${encodeURIComponent(telegram_id)}/wallet`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ address: connectedWalletAddress }) });
+        } catch(e){ console.error('Failed saving wallet to server', e); }
+
       } else {
         // Send debug info to server to inspect why TonConnect didn't return address
         try {

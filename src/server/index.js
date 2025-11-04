@@ -128,6 +128,20 @@ async function start() {
     }
   });
 
+  // Save wallet address for player
+  app.post('/api/player/:telegram_id/wallet', async (req, res) => {
+    try {
+      const telegram_id = req.params.telegram_id;
+      const address = req.body.address;
+      if (!telegram_id || !address) return res.status(400).json({ error: 'invalid' });
+      const updated = await updatePlayerWallet(telegram_id, address);
+      res.json({ success: true, wallet_address: updated.wallet_address });
+    } catch (e) {
+      console.error('Failed save wallet', e);
+      res.status(500).json({ error: 'internal' });
+    }
+  });
+
   // Start Telegram bot
   require('./bot');
 }

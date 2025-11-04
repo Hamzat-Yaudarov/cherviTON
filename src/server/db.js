@@ -23,6 +23,7 @@ async function initDb() {
         telegram_id TEXT UNIQUE NOT NULL,
         username TEXT NOT NULL,
         balance NUMERIC DEFAULT 0,
+        wallet_address TEXT,
         created_at TIMESTAMP DEFAULT now()
       );
     `);
@@ -77,4 +78,17 @@ async function updatePlayerBalance(telegram_id, balance) {
   }
 }
 
-module.exports = { pool, initDb, getOrCreatePlayer, getPlayerByTelegramId, updatePlayerBalance };
+async function updatePlayerWallet(telegram_id, wallet_address) {
+  const client = await pool.connect();
+  try {
+    const res = await client.query(
+      'UPDATE players SET wallet_address = $1 WHERE telegram_id = $2 RETURNING *',
+      [wallet_address, telegram_id]
+    );
+    return res.rows[0];
+  } finally {
+    client.release();
+  }
+}
+
+module.exports = { pool, initDb, getOrCreatePlayer, getPlayerByTelegramId, updatePlayerBalance, updatePlayerWallet };
