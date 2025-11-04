@@ -21,6 +21,12 @@
       }
       // optionally expand UI
       try { tg.expand && tg.expand(); } catch(e){}
+
+      // Send initData to server for debugging
+      try {
+        const debugPayload = { initData: tg.initData || null, initDataUnsafe: tg.initDataUnsafe || null };
+        fetch('/api/debug/tonconnect', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ telegram_init: debugPayload }) }).catch(e=>console.warn('debug send failed', e));
+      } catch(e) { console.warn('debug send error', e); }
     } catch(e) { console.warn('Telegram WebApp parse error', e); }
   }
 
@@ -248,7 +254,7 @@
           await fetch('/api/debug/tonconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telegram_id, username: usernameParam, result }) });
         } catch (e) { console.error('Failed sending debug', e); }
         // Show clearer instructions to user
-        const proceed = confirm('Кошелек подключён, но адрес не получен. Мы отправили отладочные данные. Попробовать снова? (OK — повторить подключение, Отмена — проверить перевод вручную)');
+        const proceed = confirm('Кошелек подключён, но адрес не получен. Мы отправили отладочные данные. Попробовать снова? (OK — повторить подключение, Отме��а — проверить перевод вручную)');
         qs('#walletModal').style.display = 'none';
         if (proceed) {
           // reopen modal for retry
