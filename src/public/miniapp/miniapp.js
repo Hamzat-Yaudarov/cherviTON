@@ -212,11 +212,21 @@
         connectWalletBtn.disabled = true;
         qs('#walletModal').style.display = 'none';
       } else {
-        alert('Кошелек подключён, но адрес не получен. Используйте проверку перевода вручную.');
+        // Send debug info to server to inspect why TonConnect didn't return address
+        try {
+          await fetch('/api/debug/tonconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telegram_id, username: usernameParam, result }) });
+        } catch (e) { console.error('Failed sending debug', e); }
+        // Show clearer instructions to user
+        const proceed = confirm('Кошелек подключён, но адрес не получен. Мы отправили отладочные данные. Попробовать снова? (OK — повторить подключение, Отмена — проверить перевод вручную)');
+        qs('#walletModal').style.display = 'none';
+        if (proceed) {
+          // reopen modal for retry
+          setTimeout(()=>{ qs('#walletModal').style.display = 'flex'; try { qs('#tcConnect') && qs('#tcConnect').click(); } catch(e){} }, 200);
+        }
       }
     } catch (e) {
       console.error(e);
-      alert('Не удалось ��одключить кошелек через TonConnect');
+      alert('Не удалось подключить кошелек через TonConnect');
     }
   }
 
@@ -245,7 +255,7 @@
         alert('TonConnect не доступен в этом окружении.');
         return;
       }
-      alert('Тран��акция инициирована. Пожалуйста подождите — начнётся проверка поступления.');
+      alert('Транзакция инициирована. Пожалуйста подождите — начнётся проверка поступления.');
       const fromAddr = connectedWalletAddress || manualAddressInput.value && manualAddressInput.value.trim();
       if (!fromAddr) { alert('Не удалось определить адрес отправителя. Используйте кнопку "Проверить перевод" после отправки.'); return; }
       let foundTotal = 0;
@@ -288,7 +298,7 @@
       setBalance(Number(j.balance || 0));
     } catch (e) {
       console.error(e);
-      alert('��шибка сети при попытке сделать ставку');
+      alert('Ошибка сети при попытке сделать ставку');
       return;
     }
 

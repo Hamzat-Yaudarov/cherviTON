@@ -116,6 +116,18 @@ async function start() {
     console.log(`MiniApp available at ${WEB_APP_URL || `http://localhost:${PORT}`}/miniapp/index.html`);
   });
 
+  // Debug endpoint to receive TonConnect results from client (for debugging only)
+  app.post('/api/debug/tonconnect', async (req, res) => {
+    try {
+      console.log('TonConnect debug from client:', { body: req.body });
+      // Optionally, store in DB or forward to Sentry
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('Failed debug tonconnect', e);
+      res.status(500).json({ ok: false });
+    }
+  });
+
   // Start Telegram bot
   require('./bot');
 }
