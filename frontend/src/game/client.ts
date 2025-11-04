@@ -6,6 +6,7 @@ export interface GameState {
     size: number;
     score: number;
     body: Array<{ x: number; y: number }>;
+    alive: boolean;
   };
   players: Array<{
     id: string;
@@ -15,6 +16,7 @@ export interface GameState {
     score: number;
     body: Array<{ x: number; y: number }>;
     username: string;
+    alive: boolean;
   }>;
   pellets: Array<{ id: string; x: number; y: number; size: number }>;
 }

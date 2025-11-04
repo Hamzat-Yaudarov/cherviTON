@@ -52,10 +52,11 @@ export function GameCanvas({ user, betAmount, onGameOver, onExit }: GameCanvasPr
       });
 
     // Handle device motion for tilt-to-move
-    const handleDeviceMotion = (event: DeviceMotionEvent) => {
+    const handleDeviceMotion = (event: any) => {
       if (gameState !== 'playing') return;
 
-      const { beta, gamma } = event;
+      const beta = event.beta;
+      const gamma = event.gamma;
       if (beta !== null && gamma !== null) {
         const angle = Math.atan2(gamma, beta);
         gameClient.setDirection(angle);
