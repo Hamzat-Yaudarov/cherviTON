@@ -24,7 +24,7 @@ bot.onText(/\/start/, async msg => {
   }
 
   // Prefer Telegram Web App button so MiniApp opens inside Telegram
-  const webAppUrl = `${WEB_APP_URL.replace(/\/$/, '')}/miniapp/index.html`;
+  const webAppUrl = `${WEB_APP_URL.replace(/\/$/, '')}/miniapp`;
 
   const text = `Привет, ${username}! Добро пожаловать. Нажми кнопку, чтобы открыть мини-приложение и начать игру.`;
   const opts = {
