@@ -1,5 +1,7 @@
 from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional, Dict
@@ -15,11 +17,11 @@ ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # PostgreSQL connection
-DB_URL = os.environ['NEON_DB_URL']
+DB_URL = os.environ.get('NEON_DB_URL', '')
 db_pool = None
 
 # Telegram Bot Token
-BOT_TOKEN = os.environ['TELEGRAM_BOT_TOKEN']
+BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -305,3 +307,21 @@ async def startup():
 async def shutdown():
     if db_pool:
         await db_pool.close()
+
+# Serve React frontend static files
+frontend_build_dir = Path(__file__).parent.parent / "frontend" / "build"
+if frontend_build_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(frontend_build_dir / "static")), name="static")
+    
+    @app.get("/{full_path:path}")
+    async def serve_react_app(full_path: str):
+        """Serve React app for all non-API routes"""
+        if full_path.startswith("api/") or full_path.startswith("ws/"):
+            raise HTTPException(status_code=404, detail="Not found")
+        
+        file_path = frontend_build_dir / full_path
+        if file_path.is_file():
+            return FileResponse(file_path)
+        
+        # Return index.html for all other routes (SPA routing)
+        return FileResponse(frontend_build_dir / "index.html")
