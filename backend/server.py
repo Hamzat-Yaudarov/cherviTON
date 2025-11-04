@@ -309,19 +309,26 @@ async def shutdown():
         await db_pool.close()
 
 # Serve React frontend static files
-frontend_build_dir = Path(__file__).parent.parent / "frontend" / "build"
+frontend_build_dir = Path(__file__).parent / "public"
 if frontend_build_dir.exists():
+    logger.info(f"Frontend build directory found at: {frontend_build_dir}")
     app.mount("/static", StaticFiles(directory=str(frontend_build_dir / "static")), name="static")
-    
+
     @app.get("/{full_path:path}")
     async def serve_react_app(full_path: str):
         """Serve React app for all non-API routes"""
         if full_path.startswith("api/") or full_path.startswith("ws/"):
             raise HTTPException(status_code=404, detail="Not found")
-        
+
         file_path = frontend_build_dir / full_path
         if file_path.is_file():
             return FileResponse(file_path)
-        
+
         # Return index.html for all other routes (SPA routing)
-        return FileResponse(frontend_build_dir / "index.html")
+        index_file = frontend_build_dir / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file)
+
+        raise HTTPException(status_code=404, detail="Frontend not found")
+else:
+    logger.warning(f"Frontend build directory not found at: {frontend_build_dir}")

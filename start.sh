@@ -18,6 +18,19 @@ echo "🏗️ Building frontend..."
 export REACT_APP_BACKEND_URL="${REACT_APP_BACKEND_URL:-/}"
 yarn build
 
+# Copy frontend build to backend/public for serving
+echo "📋 Copying frontend build to backend..."
+mkdir -p ../backend/public
+cp -r build/* ../backend/public/
+
+# Verify build exists
+if [ -f ../backend/public/index.html ]; then
+    echo "✅ Frontend build verified!"
+else
+    echo "❌ ERROR: Frontend build failed!"
+    exit 1
+fi
+
 # Return to root
 cd ..
 
