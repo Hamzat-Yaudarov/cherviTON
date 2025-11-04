@@ -1,0 +1,28 @@
+:root{
+  --bg: #0f172a;
+  --card: #0b1220;
+  --accent: #06b6d4;
+  --muted: #94a3b8;
+  --white: #ffffff;
+}
+body{margin:0;font-family:Inter, system-ui, sans-serif;background:var(--bg);color:var(--white);}
+.app-root{max-width:1100px;margin:20px auto;padding:16px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+.player-nick{font-weight:700;background:var(--card);padding:8px 12px;border-radius:8px}
+.player-balance{background:var(--card);padding:8px 12px;border-radius:8px;cursor:pointer}
+.lobby{display:flex;gap:24px}
+.bet-section{flex:1;background:var(--card);padding:16px;border-radius:12px}
+.wallet-section{width:260px;background:var(--card);padding:16px;border-radius:12px}
+.section-title{margin:0 0 8px 0}
+.bet-options{display:flex;gap:8px}
+.bet-btn{background:#122235;border:1px solid #1f2a44;color:var(--white);padding:10px 14px;border-radius:8px;cursor:pointer}
+.bet-btn.active{background:var(--accent);color:#012a2d}
+.primary-button{background:var(--accent);color:var(--white);padding:10px 14px;border-radius:10px;border:none;cursor:pointer}
+.secondary-button{background:transparent;border:1px solid #1f2a44;color:var(--white);padding:8px 10px;border-radius:8px;cursor:pointer}
+.topup-menu{margin-top:12px;display:flex;gap:8px}
+.topup-menu.hidden{display:none}
+.topup-menu input{flex:1;padding:8px;border-radius:8px;border:1px solid #1f2a44;background:transparent;color:var(--white)}
+.game-section{position:relative;margin-top:12px}
+.game-canvas{display:block;border-radius:8px;background:#071023}
+.leave-button{position:absolute;right:16px;top:16px}
+.hidden{display:none}

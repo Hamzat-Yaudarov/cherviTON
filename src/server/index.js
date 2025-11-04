@@ -1,0 +1,242 @@
+import express from 'express';
+import path from 'path';
+import http from 'http';
+import { WebSocketServer } from 'ws';
+import bodyParser from 'body-parser';
+import cors from 'cors';
+import { Telegraf, Markup } from 'telegraf';
+import { initDb, getUserByUsername, createUserIfNotExists, updateUserBalance, transferBalance } from '../db/client.js';
+
+const app = express();
+app.use(cors());
+app.use(bodyParser.json());
+
+const __dirname = path.resolve();
+const publicDir = path.join(__dirname, 'public');
+app.use(express.static(publicDir));
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: '/ws' });
+
+// Simple in-memory game state for demonstration
+const GAME = {
+  players: new Map(), // username -> {ws, snake, length, alive, color}
+  foods: [],
+  tickInterval: null,
+};
+
+function randColor() {
+  return '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+}
+
+function spawnFood(x, y, value=1) {
+  const food = { id: Date.now() + Math.random(), x, y, value };
+  GAME.foods.push(food);
+}
+
+function initGameLoop() {
+  if (GAME.tickInterval) return;
+  GAME.tickInterval = setInterval(() => {
+    // move snakes
+    for (const [username, p] of GAME.players) {
+      if (!p.alive) continue;
+      const head = p.snake[0];
+      head.x += p.vx;
+      head.y += p.vy;
+      // wall collision
+      if (head.x < 0 || head.x > 1000 || head.y < 0 || head.y > 600) {
+        handleDeath(username);
+        continue;
+      }
+      // append new head
+      p.snake.unshift({ x: head.x, y: head.y });
+      while (p.snake.length > p.length) p.snake.pop();
+    }
+
+    // collisions between snakes
+    const playersArray = Array.from(GAME.players.entries());
+    for (let i=0;i<playersArray.length;i++){
+      const [aName,a]=playersArray[i];
+      if(!a.alive) continue;
+      const aHead = a.snake[0];
+      for (let j=0;j<playersArray.length;j++){
+        if(i===j) continue;
+        const [bName,b]=playersArray[j];
+        if(!b.alive) continue;
+        // check head-to-body
+        for(let k=0;k<b.snake.length;k++){
+          const seg = b.snake[k];
+          const dx = aHead.x - seg.x; const dy = aHead.y - seg.y;
+          if(Math.hypot(dx,dy) < 10){
+            // head-on between heads
+            if(k===0){
+              if(a.length > b.length){
+                // b dies
+                handleDeath(bName);
+              } else if(a.length < b.length){
+                handleDeath(aName);
+              } else {
+                // equal - both die
+                handleDeath(aName);
+                handleDeath(bName);
+              }
+            } else {
+              // a dies colliding into body of b
+              handleDeath(aName);
+            }
+            break;
+          }
+        }
+      }
+    }
+
+    // food collection
+    for (const [uname, p] of GAME.players) {
+      if (!p.alive) continue;
+      const head = p.snake[0];
+      for (let i = GAME.foods.length - 1; i >= 0; i--) {
+        const f = GAME.foods[i];
+        const d = Math.hypot(head.x - f.x, head.y - f.y);
+        if (d < 12) {
+          p.length += f.value;
+          GAME.foods.splice(i,1);
+          // credit user with TON for collected food
+          updateUserBalance(uname, f.value).catch(console.error);
+        }
+      }
+    }
+
+    // broadcast state
+    const state = {
+      players: Array.from(GAME.players.values()).map(p=>({username:p.username,length:p.length, snake:p.snake, color:p.color, alive:p.alive})),
+      foods: GAME.foods,
+    };
+    const payload = JSON.stringify({type:'state', state});
+    for (const [,p] of GAME.players){
+      if(p.ws && p.ws.readyState===p.ws.OPEN) p.ws.send(payload);
+    }
+  }, 1000/15);
+}
+
+function stopGameLoop(){
+  if(GAME.tickInterval) clearInterval(GAME.tickInterval);
+  GAME.tickInterval = null;
+}
+
+async function handleDeath(username){
+  const p = GAME.players.get(username);
+  if(!p || !p.alive) return;
+  p.alive = false;
+  // spawn foods along body
+  for (const seg of p.snake){
+    spawnFood(seg.x, seg.y, 1);
+  }
+  // update DB: no immediate transfers here; transfers happen when collected
+}
+
+wss.on('connection', (ws, req)=>{
+  ws.isAlive = true;
+  ws.on('pong', ()=> ws.isAlive = true);
+  ws.on('message', async (msg)=>{
+    try{
+      const data = JSON.parse(msg.toString());
+      if(data.type==='join'){
+        const username = data.username || ('anon'+Math.floor(Math.random()*10000));
+        await createUserIfNotExists(username);
+        const user = await getUserByUsername(username);
+        // check bet
+        const bet = Number(data.bet || 0);
+        if(bet>0 && user && Number(user.balance) < bet){
+          ws.send(JSON.stringify({type:'error', message:'Недостаточно баланса'}));
+          return;
+        }
+        if(bet>0){
+          // deduct bet
+          await updateUserBalance(username, -bet);
+        }
+        const player = {
+          ws,
+          username,
+          snake:[{x:Math.random()*800+50, y:Math.random()*400+50}],
+          vx:0, vy:0,
+          length: 10 + Math.floor(Math.random()*10),
+          alive: true,
+          color: randColor(),
+        };
+        GAME.players.set(username, player);
+        initGameLoop();
+        ws.send(JSON.stringify({type:'joined', username}));
+      } else if(data.type==='move'){
+        const p = GAME.players.get(data.username);
+        if(p && p.alive){
+          // normalize velocity
+          const speed = 4;
+          const len = Math.hypot(data.vx, data.vy) || 1;
+          p.vx = (data.vx/len)*speed;
+          p.vy = (data.vy/len)*speed;
+        }
+      } else if(data.type==='leave'){
+        const name = data.username;
+        GAME.players.delete(name);
+        if(GAME.players.size===0) stopGameLoop();
+      }
+    }catch(err){console.error('ws msg err',err)}
+  });
+  ws.on('close', ()=>{
+    // find and remove player by ws
+    for(const [k,p] of GAME.players){
+      if(p.ws===ws) GAME.players.delete(k);
+    }
+    if(GAME.players.size===0) stopGameLoop();
+  });
+});
+
+// API endpoints
+app.get('/api/user', async (req,res)=>{
+  const username = String(req.query.username||'').trim();
+  if(!username) return res.status(400).json({error:'username required'});
+  const user = await createUserIfNotExists(username);
+  res.json({user});
+});
+
+app.post('/api/deposit', async (req,res)=>{
+  const { username, amount } = req.body;
+  if(!username || !amount) return res.status(400).json({error:'username and amount required'});
+  const amt = Number(amount);
+  if(isNaN(amt) || amt<=0) return res.status(400).json({error:'invalid amount'});
+  await updateUserBalance(username, amt);
+  res.json({ok:true});
+});
+
+// initialize DB and start services
+(async ()=>{
+  await initDb();
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  if(botToken){
+    try{
+      const bot = new Telegraf(botToken, {telegram: {webhookReply: true}});
+      bot.start(async (ctx)=>{
+        const username = ctx.from.username || ctx.from.first_name || ('user'+ctx.from.id);
+        const url = `${process.env.WEB_APP_URL}?username=${encodeURIComponent(username)}`;
+        await createUserIfNotExists(username);
+        await ctx.reply('Добро пожаловать! Нажмите кнопку, чтобы открыть мини-игру.', Markup.inlineKeyboard([
+          Markup.button.webApp('Начать игру', {url})
+        ]));
+      });
+      // basic command to check balance
+      bot.command('balance', async (ctx)=>{
+        const username = ctx.from.username || ctx.from.first_name || ('user'+ctx.from.id);
+        const user = await createUserIfNotExists(username);
+        await ctx.reply(`Ваш баланс: ${user.balance} TON`);
+      });
+      bot.launch();
+      console.log('Telegram bot started');
+    }catch(err){console.error('bot err',err)}
+  } else {
+    console.warn('TELEGRAM_BOT_TOKEN not set, bot disabled');
+  }
+
+  const PORT = process.env.PORT || 3000;
+  server.listen(PORT, ()=>console.log('Server listening on', PORT));
+})();
