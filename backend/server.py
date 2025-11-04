@@ -18,10 +18,15 @@ load_dotenv(ROOT_DIR / '.env')
 
 # PostgreSQL connection
 DB_URL = os.environ.get('NEON_DB_URL', '')
+if not DB_URL:
+    raise ValueError("❌ NEON_DB_URL environment variable not set")
+
 db_pool = None
 
 # Telegram Bot Token
 BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
+if not BOT_TOKEN:
+    raise ValueError("❌ TELEGRAM_BOT_TOKEN environment variable not set")
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -70,44 +75,52 @@ class WormPosition(BaseModel):
 # Database initialization
 async def init_db():
     global db_pool
-    db_pool = await asyncpg.create_pool(DB_URL, min_size=1, max_size=10)
-    
-    async with db_pool.acquire() as conn:
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS players (
-                user_id BIGINT PRIMARY KEY,
-                username TEXT NOT NULL,
-                wallet_address TEXT,
-                balance DECIMAL(20, 9) DEFAULT 0,
-                total_games INTEGER DEFAULT 0,
-                wins INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        ''')
-        
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS transactions (
-                id SERIAL PRIMARY KEY,
-                user_id BIGINT NOT NULL,
-                transaction_type TEXT NOT NULL,
-                amount DECIMAL(20, 9) NOT NULL,
-                transaction_hash TEXT,
-                status TEXT DEFAULT 'pending',
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        ''')
-        
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS game_history (
-                id SERIAL PRIMARY KEY,
-                room_id TEXT NOT NULL,
-                bet_amount DECIMAL(20, 9) NOT NULL,
-                winner_id BIGINT,
-                players JSONB NOT NULL,
-                duration INTEGER,
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        ''')
+    try:
+        logger.info(f"Connecting to database: {DB_URL[:50]}...")
+        db_pool = await asyncpg.create_pool(DB_URL, min_size=1, max_size=10, timeout=10)
+        logger.info("✅ Database pool created successfully")
+
+        async with db_pool.acquire() as conn:
+            logger.info("Creating tables...")
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS players (
+                    user_id BIGINT PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    wallet_address TEXT,
+                    balance DECIMAL(20, 9) DEFAULT 0,
+                    total_games INTEGER DEFAULT 0,
+                    wins INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS transactions (
+                    id SERIAL PRIMARY KEY,
+                    user_id BIGINT NOT NULL,
+                    transaction_type TEXT NOT NULL,
+                    amount DECIMAL(20, 9) NOT NULL,
+                    transaction_hash TEXT,
+                    status TEXT DEFAULT 'pending',
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+
+            await conn.execute('''
+                CREATE TABLE IF NOT EXISTS game_history (
+                    id SERIAL PRIMARY KEY,
+                    room_id TEXT NOT NULL,
+                    bet_amount DECIMAL(20, 9) NOT NULL,
+                    winner_id BIGINT,
+                    players JSONB NOT NULL,
+                    duration INTEGER,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            ''')
+            logger.info("✅ Tables created successfully")
+    except Exception as e:
+        logger.error(f"❌ Database initialization failed: {e}", exc_info=True)
+        raise
 
 # API Routes
 @api_router.get("/")
@@ -314,7 +327,7 @@ frontend_build_dir = Path(__file__).parent / "public"
 # Log frontend directory status
 if frontend_build_dir.exists():
     logger.info(f"✅ Frontend build directory found at: {frontend_build_dir}")
-    logger.info(f"   Contents: {list(frontend_build_dir.iterdir())[:5]}")  # Log first 5 items
+    logger.info(f"   Contents: {list(frontend_build_dir.iterdir())[:5]}")
 
     # Mount static files
     static_dir = frontend_build_dir / "static"
@@ -323,20 +336,32 @@ if frontend_build_dir.exists():
         logger.info(f"✅ Static files mounted from: {static_dir}")
     else:
         logger.warning(f"⚠️  Static directory not found at: {static_dir}")
+else:
+    logger.error(f"❌ Frontend build directory NOT FOUND at: {frontend_build_dir}")
+    logger.error(f"   Current directory: {Path(__file__).parent}")
+    logger.error(f"   Available directories: {list(Path(__file__).parent.iterdir())}")
 
-    # Serve index.html on root
-    @app.get("/")
-    async def serve_index():
-        """Serve React app root"""
+# Frontend serving handlers - MUST be defined AFTER router inclusion
+@app.get("/")
+async def serve_index():
+    """Serve React app root"""
+    try:
         index_file = frontend_build_dir / "index.html"
         if index_file.exists():
-            logger.info(f"Serving index.html from {index_file}")
-            return FileResponse(index_file)
+            logger.debug(f"Serving index.html from {index_file}")
+            return FileResponse(index_file, media_type="text/html")
+        logger.error(f"index.html not found at {index_file}")
         raise HTTPException(status_code=404, detail="index.html not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving index.html: {e}")
+        raise HTTPException(status_code=500, detail="Error serving frontend")
 
-    @app.get("/{full_path:path}")
-    async def serve_react_app(full_path: str):
-        """Serve React app for all non-API/WS routes"""
+@app.get("/{full_path:path}")
+async def serve_react_app(full_path: str):
+    """Serve React app for all non-API/WS routes"""
+    try:
         # Don't intercept API and WebSocket routes
         if full_path.startswith("api/") or full_path.startswith("ws/"):
             raise HTTPException(status_code=404, detail="Not found")
@@ -355,11 +380,12 @@ if frontend_build_dir.exists():
         index_file = frontend_build_dir / "index.html"
         if index_file.exists():
             logger.debug(f"Serving SPA route: {full_path} -> index.html")
-            return FileResponse(index_file)
+            return FileResponse(index_file, media_type="text/html")
 
-        logger.warning(f"File not found: {full_path}")
+        logger.warning(f"Frontend file not found: {full_path}, index.html missing")
         raise HTTPException(status_code=404, detail="Frontend file not found")
-else:
-    logger.error(f"❌ Frontend build directory NOT FOUND at: {frontend_build_dir}")
-    logger.error(f"   Current directory: {Path(__file__).parent}")
-    logger.error(f"   Available directories: {list(Path(__file__).parent.iterdir())}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error serving frontend route {full_path}: {e}")
+        raise HTTPException(status_code=500, detail="Error serving frontend")

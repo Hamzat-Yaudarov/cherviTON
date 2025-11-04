@@ -8,7 +8,12 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://telegram-app-debug.preview.emergentagent.com')
+WEB_APP_URL = os.getenv('WEB_APP_URL')
+
+if not BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable not set")
+if not WEB_APP_URL:
+    raise ValueError("WEB_APP_URL environment variable not set")
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -34,7 +39,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     welcome_message = (
         f"Привет, {user.first_name}! 👋\n\n"
         "🐛 Добро пожаловать в игру Worm Battle!\n\n"
-        "Это многопользовательская игра, где червяки сражаются за TON!\n\n"
+        "Это многопользовательская игра, где червяки сра��аются за TON!\n\n"
         "🎯 Правила:\n"
         "• Выбирайте ставку: 1, 3, 5 или 10 TON\n"
         "• Управляйте червяком и собирайте шарики\n"
