@@ -58,9 +58,12 @@
     <div class="modal-content">
       <h3>Подключить кошелек</h3>
       <p>Попробуйте подключиться через TonConnect (Tonkeeper, Tonhub и др.) или введите адрес кошелька вручную.</p>
-      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-        <button id="tcConnect" class="primary">Подключиться через TonConnect</button>
-        <input id="manualAddress" placeholder="Введите адрес TON" style="flex:1;padding:8px;border-radius:6px;border:1px solid #223;" />
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-direction:column;">
+        <button id="tcConnectPrimary" class="primary" style="width:100%;padding:12px 16px;">Connect Wallet in Telegram</button>
+        <div style="display:flex;gap:8px;width:100%;">
+          <button id="tcConnect" class="primary" style="flex:0 0 180px;">Другие кошельки (TonConnect)</button>
+          <input id="manualAddress" placeholder="(если нужно) Адрес TON" style="flex:1;padding:8px;border-radius:6px;border:1px solid #223;" />
+        </div>
       </div>
       <div class="modal-actions">
         <button id="walletClose">Закрыть</button>

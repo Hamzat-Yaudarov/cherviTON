@@ -152,8 +152,15 @@
   const walletClose = qs('#walletClose');
   const walletSave = qs('#walletSave');
   const tcConnectBtn = qs('#tcConnect');
+  const tcConnectPrimary = qs('#tcConnectPrimary');
   const manualAddressInput = qs('#manualAddress');
   let connectedWalletAddress = null;
+
+  // If in Telegram WebApp, hide manual address input and show primary Telegram connect button
+  if (window.Telegram && window.Telegram.WebApp) {
+    try { if (manualAddressInput) manualAddressInput.style.display = 'none'; } catch(e){}
+    try { if (tcConnectPrimary) tcConnectPrimary.style.display = 'block'; } catch(e){}
+  }
 
   walletClose.addEventListener('click', ()=> qs('#walletModal').style.display = 'none');
   walletSave.addEventListener('click', ()=>{
@@ -163,12 +170,25 @@
       connectWalletBtn.textContent = `Кошелек: ${addr.slice(0,6)}...${addr.slice(-6)}`;
       connectWalletBtn.disabled = true;
       qs('#walletModal').style.display = 'none';
+    } else if (connectedWalletAddress) {
+      qs('#walletModal').style.display = 'none';
     } else {
-      alert('Введите адрес или и��пользуйте TonConnect');
+      alert('Введите адрес или используйте TonConnect');
     }
   });
 
   tcConnectBtn.addEventListener('click', async ()=>{
+    await connectViaTonConnect();
+  });
+
+  // primary Telegram wallet connect button (bigger) — triggers same flow
+  if (tcConnectPrimary) {
+    tcConnectPrimary.addEventListener('click', async ()=>{
+      await connectViaTonConnect();
+    });
+  }
+
+  async function connectViaTonConnect() {
     if (!tonConnectUI && !window.TonConnect && !window.tonConnect) {
       alert('TonConnect UI/SDK не загружен. Попробуйте ввести адрес вручную.');
       return;
@@ -196,9 +216,9 @@
       }
     } catch (e) {
       console.error(e);
-      alert('Не удалось подключить кошелек через TonConnect');
+      alert('Не удалось ��одключить кошелек через TonConnect');
     }
-  });
+  }
 
   qsa('.stake').forEach(btn => btn.addEventListener('click', (e) => {
     qsa('.stake').forEach(b=>b.classList.remove('active'));
@@ -225,7 +245,7 @@
         alert('TonConnect не доступен в этом окружении.');
         return;
       }
-      alert('Транзакция инициирована. Пожалуйста подождите — начнётся проверка поступления.');
+      alert('Тран��акция инициирована. Пожалуйста подождите — начнётся проверка поступления.');
       const fromAddr = connectedWalletAddress || manualAddressInput.value && manualAddressInput.value.trim();
       if (!fromAddr) { alert('Не удалось определить адрес отправителя. Используйте кнопку "Проверить перевод" после отправки.'); return; }
       let foundTotal = 0;
@@ -268,7 +288,7 @@
       setBalance(Number(j.balance || 0));
     } catch (e) {
       console.error(e);
-      alert('Ошибка сети при попытке сделать ставку');
+      alert('��шибка сети при попытке сделать ставку');
       return;
     }
 

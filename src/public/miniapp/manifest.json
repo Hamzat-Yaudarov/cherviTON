@@ -6,5 +6,5 @@
   "icons": [
     { "src": "/miniapp/icon-192.png", "sizes": "192x192", "type": "image/png" }
   ],
-  "start_url": "/miniapp/index.html"
+  "start_url": "https://cherviton-production.up.railway.app/miniapp"
 }
