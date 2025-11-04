@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
-WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://tele-game-worms.preview.emergentagent.com')
+WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://telegram-app-debug.preview.emergentagent.com')
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
