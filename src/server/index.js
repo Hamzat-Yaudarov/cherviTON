@@ -13,6 +13,11 @@ app.use(bodyParser.json());
 
 const __dirname = path.resolve();
 const publicDir = path.join(__dirname, 'public');
+// simple request logger
+app.use((req,res,next)=>{
+  console.log('[REQ]', req.method, req.path);
+  next();
+});
 app.use(express.static(publicDir));
 // serve miniapp at root
 app.get('/', (req,res)=>{
@@ -20,6 +25,10 @@ app.get('/', (req,res)=>{
 });
 // favicon
 app.get('/favicon.ico', (req,res)=> res.status(204).end());
+
+// health and diagnostics
+app.get('/_health', (req,res)=> res.json({ok:true, time: new Date().toISOString()}));
+app.get('/_version', (req,res)=> res.json({version: process.env.npm_package_version || 'dev'}));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
@@ -292,6 +301,8 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
   if(botToken){
     try{
       const bot = new Telegraf(botToken, {telegram: {webhookReply: true}});
+      // expose bot for diagnostics
+      global.TELEGRAM_BOT = bot;
       function sanitizeWebAppUrl(raw){
         if(!raw) return '';
         let s = String(raw).trim();
@@ -340,8 +351,11 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
           if(!webUrlRaw) throw new Error('WEB_APP_URL not set, cannot configure webhook');
           const webUrl = webUrlRaw.startsWith('http') ? webUrlRaw : `https://${webUrlRaw}`;
           const hookPath = '/telegram-webhook';
-          // mount webhook route explicitly
-          app.post(hookPath, express.json(), bot.webhookCallback(hookPath));
+          // mount webhook route explicitly and log incoming webhook body
+          app.post(hookPath, express.json(), (req,res,next)=>{
+            console.log('[WEBHOOK IN]', req.method, hookPath, 'bodyKeys=', Object.keys(req.body || {}));
+            return bot.webhookCallback(hookPath)(req,res,next);
+          });
           // build full webhook URL using URL constructor to avoid malformed strings
           let full;
           try{
@@ -352,6 +366,15 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
           }
           await bot.telegram.setWebhook(full);
           console.log('Telegram webhook set to', full);
+          // diagnostics endpoint to inspect webhook info
+          app.get('/_telegram_webhook_info', async (req,res)=>{
+            try{
+              const info = await bot.telegram.getWebhookInfo();
+              res.json(info);
+            }catch(e){
+              res.status(500).json({error:String(e)});
+            }
+          });
         }catch(inner){
           console.error('Failed to set webhook for Telegram bot:', inner);
         }
