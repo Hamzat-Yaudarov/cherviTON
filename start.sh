@@ -34,19 +34,21 @@ fi
 # Return to root
 cd ..
 
+# Set PORT from Railway environment variable
+export PORT="${PORT:-8000}"
+echo "📡 Using port: $PORT"
+
 # Export WEB_APP_URL for the Telegram bot
-export WEB_APP_URL="${WEB_APP_URL:-http://localhost:${PORT:-8000}}"
+export WEB_APP_URL="${WEB_APP_URL:-http://localhost:$PORT}"
+echo "🌐 Web App URL: $WEB_APP_URL"
 
-# Start the FastAPI server
-echo "✅ Starting FastAPI server..."
+# Start the Telegram bot in the background
+echo "🤖 Starting Telegram bot..."
 cd backend
-python3 -m uvicorn server:app --host 0.0.0.0 --port ${PORT:-8000} &
-SERVER_PID=$!
-
-# Start the Telegram bot
-echo "✅ Starting Telegram bot..."
-python3 telegram_bot.py &
+python3 telegram_bot.py > /tmp/telegram_bot.log 2>&1 &
 BOT_PID=$!
+echo "✅ Telegram bot started (PID: $BOT_PID)"
 
-# Wait for both processes
-wait $SERVER_PID $BOT_PID
+# Start the FastAPI server (this stays in foreground for Railway)
+echo "🚀 Starting FastAPI server on port $PORT..."
+exec python3 -m uvicorn server:app --host 0.0.0.0 --port $PORT
