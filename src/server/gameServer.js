@@ -1,7 +1,7 @@
 const WebSocket = require('ws');
 const url = require('url');
 const { v4: uuidv4 } = require('uuid');
-const { updatePlayerBalance } = require('./db');
+const { updatePlayerBalance, getPlayerByTelegramId } = require('./db');
 
 // Game settings
 const MAX_PLAYERS_PER_ROOM = 15;
@@ -41,71 +41,81 @@ function initGameServer(server) {
   const wss = new WebSocket.Server({ server, path: '/ws' });
 
   wss.on('connection', (ws, req) => {
-    const params = url.parse(req.url, true).query;
-    const telegram_id = params.telegram_id;
-    const username = params.username || `Player-${telegram_id}`;
+    (async () => {
+      const params = url.parse(req.url, true).query;
+      const telegram_id = params.telegram_id;
+      const username = params.username || `Player-${telegram_id}`;
 
-    if (!telegram_id) {
-      ws.close(1008, 'telegram_id required');
-      return;
-    }
-
-    // Assign to a room
-    const room = findRoomWithSpace();
-
-    const player = {
-      id: telegram_id,
-      username,
-      ws,
-      x: Math.random() * MAP_SIZE.width,
-      y: Math.random() * MAP_SIZE.height,
-      dir: Math.random() * Math.PI * 2,
-      speed: 2 + Math.random() * 2,
-      length: 8,
-      segments: [],
-      alive: true,
-      balance: 0,
-      stake: Number(params.stake || 1),
-      joinedAt: Date.now(),
-      canLeaveAt: null
-    };
-
-    room.players.set(telegram_id, player);
-
-    // If room is newly started, set startedAt and prevent leaving for 5 minutes from start
-    if (!room.startedAt) {
-      room.startedAt = Date.now();
-    }
-    const leaveLock = (room.startedAt || Date.now()) + 5 * 60 * 1000;
-    for (const p of room.players.values()) p.canLeaveAt = leaveLock;
-
-    ws.on('message', message => {
-      let data;
-      try {
-        data = JSON.parse(message);
-      } catch (e) {
+      if (!telegram_id) {
+        ws.close(1008, 'telegram_id required');
         return;
       }
-      if (data.type === 'input') {
-        // change direction
-        player.dir = Number(data.dir) || player.dir;
-      }
-    });
 
-    ws.on('close', () => {
-      const p = room.players.get(telegram_id);
-      if (!p) return;
-      // If leave lock expired, remove player from room, else mark disconnected and keep data
-      if (Date.now() >= (p.canLeaveAt || 0)) {
-        room.players.delete(telegram_id);
-      } else {
-        p.ws = null;
-        p.disconnectedAt = Date.now();
-      }
-    });
+      // Assign to a room
+      const room = findRoomWithSpace();
 
-    // send initial handshake
-    ws.send(JSON.stringify({ type: 'joined', roomId: room.id, playerId: telegram_id }));
+      // Load player from DB to sync balance
+      let dbPlayer = null;
+      try {
+        dbPlayer = await getPlayerByTelegramId(telegram_id);
+      } catch (e) {
+        console.error('Failed loading player from DB', e);
+      }
+
+      const player = {
+        id: telegram_id,
+        username,
+        ws,
+        x: Math.random() * MAP_SIZE.width,
+        y: Math.random() * MAP_SIZE.height,
+        dir: Math.random() * Math.PI * 2,
+        speed: 2 + Math.random() * 2,
+        length: 8,
+        segments: [],
+        alive: true,
+        balance: Number((dbPlayer && dbPlayer.balance) || 0),
+        stake: Number(params.stake || 1),
+        joinedAt: Date.now(),
+        canLeaveAt: null
+      };
+
+      room.players.set(telegram_id, player);
+
+      // If room is newly started, set startedAt and prevent leaving for 5 minutes from start
+      if (!room.startedAt) {
+        room.startedAt = Date.now();
+      }
+      const leaveLock = (room.startedAt || Date.now()) + 5 * 60 * 1000;
+      for (const p of room.players.values()) p.canLeaveAt = leaveLock;
+
+      ws.on('message', message => {
+        let data;
+        try {
+          data = JSON.parse(message);
+        } catch (e) {
+          return;
+        }
+        if (data.type === 'input') {
+          // change direction
+          player.dir = Number(data.dir) || player.dir;
+        }
+      });
+
+      ws.on('close', () => {
+        const p = room.players.get(telegram_id);
+        if (!p) return;
+        // If leave lock expired, remove player from room, else mark disconnected and keep data
+        if (Date.now() >= (p.canLeaveAt || 0)) {
+          room.players.delete(telegram_id);
+        } else {
+          p.ws = null;
+          p.disconnectedAt = Date.now();
+        }
+      });
+
+      // send initial handshake
+      try { ws.send(JSON.stringify({ type: 'joined', roomId: room.id, playerId: telegram_id })); } catch(e){}
+    })();
   });
 
   // Game loop per room

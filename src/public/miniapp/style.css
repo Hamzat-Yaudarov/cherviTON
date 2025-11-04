@@ -20,6 +20,7 @@ canvas { background: #071024; display:block; border-radius:8px; max-width:100%; 
 .modal-content { background:#081226; padding:18px; border-radius:8px; width:320px; }
 .modal-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:12px; }
 .modal button { padding:8px 10px; border-radius:6px; border:none; cursor:pointer; }
+.modal input { padding:8px; border-radius:6px; border:1px solid #334; }
 
 @media (max-width: 800px) {
   .miniapp-root { padding:8px; }

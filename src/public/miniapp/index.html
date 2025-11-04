@@ -10,7 +10,7 @@
   <div class="miniapp-root">
     <header class="miniapp-header">
       <div class="player-nick" id="playerNick">Player</div>
-      <div class="player-balance" id="playerBalance">TON: 0 <button id="balanceBtn">Пополнить</button></div>
+      <div class="player-balance" id="playerBalance">TON: 0 <button id="balanceBtn">Пополнить</button> <span id="leaveTimer" class="leave-timer" style="margin-left:12px;font-size:13px;color:#cbd5e1"></span></div>
     </header>
 
     <main class="miniapp-main">
@@ -41,11 +41,27 @@
         <p id="modalBody">Для пополнения вы должны подключить Telegram-кошелек. В демо режиме — имитация.</p>
         <div class="modal-actions">
           <button id="modalClose">Закрыть</button>
+          <button id="modalCheck">Проверить перевод</button>
           <button id="modalTopup">Пополнить 10 TON (демо)</button>
         </div>
       </div>
     </div>
 
+  </div>
+  <script src="https://unpkg.com/@tonconnect/sdk@1/dist/tonconnect.umd.js"></script>
+  <div id="walletModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <h3>Подключить кошелек</h3>
+      <p>Попробуйте подключиться через TonConnect (Tonkeeper, Tonhub и др.) или введите адрес кошелька вручную.</p>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+        <button id="tcConnect" class="primary">Подключиться через TonConnect</button>
+        <input id="manualAddress" placeholder="Введите адрес TON" style="flex:1;padding:8px;border-radius:6px;border:1px solid #223;" />
+      </div>
+      <div class="modal-actions">
+        <button id="walletClose">Закрыть</button>
+        <button id="walletSave">Сохранить адрес</button>
+      </div>
+    </div>
   </div>
   <script src="miniapp.js"></script>
 </body>

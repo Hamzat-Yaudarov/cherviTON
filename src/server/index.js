@@ -41,8 +41,56 @@ async function start() {
       if (!telegram_id || amount <= 0) return res.status(400).json({ error: 'invalid' });
       const player = await getPlayerByTelegramId(telegram_id);
       if (!player) return res.status(404).json({ error: 'not_found' });
-      const updated = await updatePlayerBalance(telegram_id, player.balance + amount);
-      res.json({ success: true, balance: updated.balance });
+      const updated = await updatePlayerBalance(telegram_id, Number(player.balance || 0) + amount);
+      res.json({ success: true, balance: Number(updated.balance) });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: 'internal' });
+    }
+  });
+
+  // TON API endpoints: check balance and deposits
+  const { getAddressBalance, findDepositsFrom } = require('./tonApi');
+
+  app.get('/api/ton/balance', async (req, res) => {
+    try {
+      const address = req.query.address;
+      if (!address) return res.status(400).json({ error: 'address required' });
+      const balance = await getAddressBalance(address);
+      res.json({ address, balance });
+    } catch (e) {
+      console.error('api ton balance error', e.message);
+      res.status(500).json({ error: 'internal' });
+    }
+  });
+
+  // Check deposits to the game address from a player's wallet since a timestamp
+  app.post('/api/ton/check_deposit', async (req, res) => {
+    try {
+      const from = req.body.from;
+      const since = Number(req.body.since || 0);
+      if (!from) return res.status(400).json({ error: 'from required' });
+      const found = await findDepositsFrom(from, since);
+      res.json({ found });
+    } catch (e) {
+      console.error('api ton check_deposit error', e.message);
+      res.status(500).json({ error: 'internal' });
+    }
+  });
+
+  // Place a bet (stake) to join a game: deduct stake from player's balance
+  app.post('/api/player/:telegram_id/bet', async (req, res) => {
+    try {
+      const telegram_id = req.params.telegram_id;
+      const stake = Number(req.body.stake || 0);
+      if (!telegram_id || stake <= 0) return res.status(400).json({ error: 'invalid' });
+      const player = await getPlayerByTelegramId(telegram_id);
+      if (!player) return res.status(404).json({ error: 'not_found' });
+      const currentBalance = Number(player.balance || 0);
+      if (currentBalance < stake) return res.status(400).json({ error: 'insufficient_funds' });
+      const updated = await updatePlayerBalance(telegram_id, currentBalance - stake);
+      // Return new balance and accepted stake
+      res.json({ success: true, balance: Number(updated.balance), stake });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: 'internal' });

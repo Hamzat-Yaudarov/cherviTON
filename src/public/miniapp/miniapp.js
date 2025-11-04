@@ -25,10 +25,22 @@
   let balance = 0;
   let ws = null;
   let playerId = telegram_id;
+  let leaveLockedUntil = null;
+  let leaveTimerEl = qs('#leaveTimer');
 
   playerNickEl.textContent = usernameParam;
 
-  function setBalance(b) { balance = b; playerBalanceEl.innerHTML = `TON: ${balance} <button id="balanceBtn">Пополнить</button>`; const btn = qs('#balanceBtn'); btn && btn.addEventListener('click', onBalanceClick); }
+  function setBalance(b) { balance = b; playerBalanceEl.innerHTML = `TON: ${balance} <button id="balanceBtn">Пополнить</button> <span id="leaveTimer" class="leave-timer" style="margin-left:12px;font-size:13px;color:#cbd5e1"></span>`; const btn = qs('#balanceBtn'); btn && btn.addEventListener('click', onBalanceClick); leaveTimerEl = qs('#leaveTimer'); }
+
+  function startLeaveTimer(ms) {
+    leaveLockedUntil = Date.now() + ms;
+    const iv = setInterval(()=>{
+      const rem = Math.max(0, leaveLockedUntil - Date.now());
+      const m = Math.floor(rem/60000); const s = Math.floor((rem%60000)/1000);
+      if (leaveTimerEl) leaveTimerEl.textContent = rem>0 ? `Нельзя выйти: ${m}:${String(s).padStart(2,'0')}` : '';
+      if (rem <= 0) clearInterval(iv);
+    }, 500);
+  }
 
   async function fetchPlayer() {
     if (!telegram_id) return;
@@ -56,10 +68,83 @@
     modal.style.display = 'none';
   });
 
+  const modalCheck = qs('#modalCheck');
+  modalCheck.addEventListener('click', async () => {
+    // Check on-chain if user transferred to GAME_TON_ADDRESS
+    if (!connectedWalletAddress) {
+      alert('Сначала подключите кошелек или укажите адрес вручную.');
+      return;
+    }
+    try {
+      const since = Date.now() - 10 * 60 * 1000; // check last 10 minutes
+      const res = await fetch('/api/ton/check_deposit', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ from: connectedWalletAddress, since }) });
+      const j = await res.json();
+      const found = (j && j.found) || [];
+      if (found.length === 0) {
+        alert('Платёж не найден. Проверьте перевод и попробуйте позже.');
+        return;
+      }
+      // sum values
+      const total = found.reduce((s, f) => s + (f.value||0), 0);
+      // credit player's in-game balance
+      const res2 = await fetch(`/api/player/${encodeURIComponent(telegram_id)}/topup`, { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ amount: total }) });
+      const j2 = await res2.json();
+      if (j2 && j2.balance !== undefined) setBalance(Number(j2.balance));
+      alert(`Найдено и зачислено ${total} TON`);
+    } catch (e) {
+      console.error(e);
+      alert('Ошибка при проверке платежа');
+    }
+    modal.style.display = 'none';
+  });
+
   connectWalletBtn.addEventListener('click', () => {
-    // Placeholder flow: mark as connected
-    connectWalletBtn.textContent = 'Кошелек подключён (демо)';
-    connectWalletBtn.disabled = true;
+    // Open wallet modal
+    qs('#walletModal').style.display = 'flex';
+  });
+
+  const walletClose = qs('#walletClose');
+  const walletSave = qs('#walletSave');
+  const tcConnectBtn = qs('#tcConnect');
+  const manualAddressInput = qs('#manualAddress');
+  let connectedWalletAddress = null;
+
+  walletClose.addEventListener('click', ()=> qs('#walletModal').style.display = 'none');
+  walletSave.addEventListener('click', ()=>{
+    const addr = manualAddressInput.value && manualAddressInput.value.trim();
+    if (addr) {
+      connectedWalletAddress = addr;
+      connectWalletBtn.textContent = `Кошелек: ${addr.slice(0,6)}...${addr.slice(-6)}`;
+      connectWalletBtn.disabled = true;
+      qs('#walletModal').style.display = 'none';
+    } else {
+      alert('Введите адрес или используйте TonConnect');
+    }
+  });
+
+  tcConnectBtn.addEventListener('click', async ()=>{
+    if (!window.TonConnect) {
+      alert('TonConnect SDK не загружен. Попробуйте ввести адрес вручную.');
+      return;
+    }
+    try {
+      const manifestUrl = window.location.origin + '/miniapp/manifest.json';
+      window.tonConnect = window.tonConnect || new window.TonConnect({ manifestUrl });
+      const result = await window.tonConnect.connect();
+      if (result && result.account) {
+        connectedWalletAddress = result.account;
+      } else if (result && result.accounts && result.accounts.length) {
+        connectedWalletAddress = result.accounts[0];
+      }
+      if (connectedWalletAddress) {
+        connectWalletBtn.textContent = `Кошелек: ${connectedWalletAddress.slice(0,6)}...${connectedWalletAddress.slice(-6)}`;
+        connectWalletBtn.disabled = true;
+        qs('#walletModal').style.display = 'none';
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Не удалось подключить кошелек через TonConnect');
+    }
   });
 
   qsa('.stake').forEach(btn => btn.addEventListener('click', (e) => {
@@ -68,9 +153,24 @@
     selectedStake = Number(e.target.dataset.stake);
   }));
 
-  playBtn.addEventListener('click', () => {
+  playBtn.addEventListener('click', async () => {
     // Must have wallet connected in this demo
     if (!connectWalletBtn.disabled) { modal.style.display = 'flex'; return; }
+    // Place bet via API (deduct stake)
+    try {
+      const res = await fetch(`/api/player/${encodeURIComponent(telegram_id)}/bet`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stake: selectedStake }) });
+      const j = await res.json();
+      if (!res.ok) {
+        alert(j && j.error ? j.error : 'Не удалось сделать ставку');
+        return;
+      }
+      setBalance(Number(j.balance || 0));
+    } catch (e) {
+      console.error(e);
+      alert('Ошибка сети при попытке сделать ставку');
+      return;
+    }
+
     startGame();
   });
 
@@ -85,6 +185,9 @@
     const proto = location.protocol === 'https:' ? 'wss' : 'ws';
     const wsUrl = `${proto}://${location.host}/ws?telegram_id=${encodeURIComponent(telegram_id)}&username=${encodeURIComponent(usernameParam)}&stake=${selectedStake}`;
     ws = new WebSocket(wsUrl);
+
+    // start local leave timer for 5 minutes
+    startLeaveTimer(5 * 60 * 1000);
 
     ws.addEventListener('open', ()=> console.log('ws open'));
     ws.addEventListener('message', evt => {
