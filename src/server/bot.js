@@ -25,7 +25,7 @@ bot.onText(/\/start/, async msg => {
 
   const url = `${WEB_APP_URL.replace(/\/$/, '')}/miniapp/index.html?telegram_id=${encodeURIComponent(telegram_id)}&username=${encodeURIComponent(username)}`;
 
-  const text = `Привет, ${username}! Добро пожа��овать. Нажми кнопку, чтобы открыть мини-приложение и начать игру.`;
+  const text = `Привет, ${username}! Добро пожаловать. Нажми кнопку, чтобы открыть мини-приложение и начать игру. Валюта внутри �� Telegram-stars.`;
   const opts = {
     reply_markup: {
       inline_keyboard: [[{ text: 'Начать игру', url }]]

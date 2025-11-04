@@ -10,7 +10,7 @@
   <div class="miniapp-root">
     <header class="miniapp-header">
       <div class="player-nick" id="playerNick">Player</div>
-      <div class="player-balance" id="playerBalance">TON: 0 <button id="balanceBtn">Пополнить</button> <span id="leaveTimer" class="leave-timer" style="margin-left:12px;font-size:13px;color:#cbd5e1"></span></div>
+      <div class="player-balance" id="playerBalance">Telegram-stars: 0 <button id="balanceBtn">Пополнить (Stars)</button> <span id="leaveTimer" class="leave-timer" style="margin-left:12px;font-size:13px;color:#cbd5e1"></span></div>
     </header>
 
     <main class="miniapp-main">
@@ -18,20 +18,15 @@
         <div class="stake-selection">
           <label class="label">Выберите ставку:</label>
           <div class="stakes" id="stakes">
-            <button data-stake="1" class="stake">1 TON</button>
-            <button data-stake="3" class="stake">3 TON</button>
-            <button data-stake="5" class="stake">5 TON</button>
-            <button data-stake="10" class="stake">10 TON</button>
+            <button data-stake="1" class="stake">1 Star</button>
+            <button data-stake="3" class="stake">3 Stars</button>
+            <button data-stake="5" class="stake">5 Stars</button>
+            <button data-stake="10" class="stake">10 Stars</button>
           </div>
         </div>
         <div class="controls">
           <button id="connectWallet" class="primary">Подключить кошелек</button>
           <button id="playBtn" class="primary play">Играть</button>
-        </div>
-        <div class="topup-report" style="margin-top:12px;">
-          <label for="txHashInput" style="display:block;margin-bottom:6px;color:#cbd5e1">После отправки TON на адрес <code id="gameAddress">GAME_TON_ADDRESS</code> вставьте txHash здесь и нажмите "Подтвердить"</label>
-          <input id="txHashInput" type="text" placeholder="txHash" style="padding:8px;border-radius:6px;border:1px solid #334155;background:#0b1220;color:#fff;width:60%" />
-          <button id="reportTxBtn" class="primary" style="margin-left:8px;">Подтвердить</button>
         </div>
       </section>
 
@@ -42,16 +37,16 @@
 
     <div id="modal" class="modal" style="display:none;">
       <div class="modal-content">
-        <h3 id="modalTitle">Пополнение баланса</h3>
-        <p id="modalBody">Для пополнения вы должны подключить Telegram-кошелек. В демо режиме — имитация.</p>
+        <h3 id="modalTitle">Пополнение Telegram-Stars</h3>
+        <p id="modalBody">Пополнение происходит через Telegram-Stars. Сначала подключите Telegram-кошелёк (Stars), затем выполните перевод. В демо-режиме реализована имитация пополнения.</p>
         <div class="modal-actions">
           <button id="modalClose">Закрыть</button>
-          <button id="modalTopup">Пополнить 10 TON (демо)</button>
+          <button id="modalTopup">Пополнить 10 Stars (демо)</button>
         </div>
       </div>
     </div>
 
   </div>
-  <script type="module" src="miniapp.js"></script>
+  <script src="miniapp.js"></script>
 </body>
 </html>

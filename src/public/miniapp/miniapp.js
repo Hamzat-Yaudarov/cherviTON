@@ -1,5 +1,3 @@
-import { TonConnect } from 'https://unpkg.com/@tonconnect/sdk@1.8.3/dist/tonconnect.browser.js';
-
 (function(){
   // Utils
   function qs(selector, el=document) { return el.querySelector(selector); }
@@ -32,7 +30,7 @@ import { TonConnect } from 'https://unpkg.com/@tonconnect/sdk@1.8.3/dist/tonconn
 
   playerNickEl.textContent = usernameParam;
 
-  function setBalance(b) { balance = b; playerBalanceEl.innerHTML = `TON: ${balance} <button id="balanceBtn">Пополнить</button> <span id="leaveTimer" class="leave-timer" style="margin-left:12px;font-size:13px;color:#cbd5e1"></span>`; const btn = qs('#balanceBtn'); btn && btn.addEventListener('click', onBalanceClick); leaveTimerEl = qs('#leaveTimer'); }
+  function setBalance(b) { balance = b; playerBalanceEl.innerHTML = `Telegram-stars: ${balance} <button id="balanceBtn">Пополнить (Stars)</button> <span id="leaveTimer" class="leave-timer" style="margin-left:12px;font-size:13px;color:#cbd5e1"></span>`; const btn = qs('#balanceBtn'); btn && btn.addEventListener('click', onBalanceClick); leaveTimerEl = qs('#leaveTimer'); }
 
   function startLeaveTimer(ms) {
     leaveLockedUntil = Date.now() + ms;
@@ -70,53 +68,10 @@ import { TonConnect } from 'https://unpkg.com/@tonconnect/sdk@1.8.3/dist/tonconn
     modal.style.display = 'none';
   });
 
-  // TX reporting
-  const txHashInput = qs('#txHashInput');
-  const reportTxBtn = qs('#reportTxBtn');
-  const gameAddressEl = qs('#gameAddress');
-  if (gameAddressEl) gameAddressEl.textContent = (window.GAME_TON_ADDRESS || '{{GAME_TON_ADDRESS}}');
-
-  reportTxBtn && reportTxBtn.addEventListener('click', async () => {
-    const txHash = txHashInput && txHashInput.value && txHashInput.value.trim();
-    if (!txHash) return alert('Введите txHash');
-    try {
-      const res = await fetch(`/api/player/${encodeURIComponent(telegram_id)}/report_tx`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ txHash }) });
-      const j = await res.json();
-      if (!res.ok) return alert(j && j.error ? j.error : 'Ошибка при проверке транзакции');
-      setBalance(Number(j.balance || 0));
-      alert(`Зачислено ${j.credited} TON`);
-    } catch (e) {
-      console.error(e);
-      alert('Ошибка сети при проверке транзакции');
-    }
-  });
-
-  // TonConnect setup
-  const connector = new TonConnect({ manifestUrl: 'https://cherviton-production.up.railway.app/miniapp/tonconnect-manifest.json' });
-
-  connectWalletBtn.addEventListener('click', async () => {
-    try {
-      await connector.connect();
-      // try to obtain wallet address from known places
-      const walletAddr = (connector && connector.account && connector.account.address) || (connector.wallet && connector.wallet.account && connector.wallet.account.address) || null;
-      if (!walletAddr) {
-        // Some implementations require waiting for "connect" event
-        // Fallback: read from connector.transport?.endpoint
-        console.warn('Wallet connected but address not found immediately');
-      }
-      connectWalletBtn.textContent = walletAddr ? `Кошелек: ${walletAddr}` : 'Кошелек подключён';
-      connectWalletBtn.disabled = true;
-
-      // send wallet mapping to server
-      if (walletAddr && telegram_id) {
-        try {
-          await fetch(`/api/player/${encodeURIComponent(telegram_id)}/link_wallet`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallet_address: walletAddr }) });
-        } catch (e) { console.error('Failed linking wallet with server', e); }
-      }
-    } catch (err) {
-      console.error('Ошибка подключения', err);
-      alert('Не удалось подключить кошелёк');
-    }
+  connectWalletBtn.addEventListener('click', () => {
+    // Placeholder flow: mark as connected
+    connectWalletBtn.textContent = 'Кошелек подключён (демо)';
+    connectWalletBtn.disabled = true;
   });
 
   qsa('.stake').forEach(btn => btn.addEventListener('click', (e) => {
@@ -217,7 +172,5 @@ import { TonConnect } from 'https://unpkg.com/@tonconnect/sdk@1.8.3/dist/tonconn
 
   // Initial load
   fetchPlayer();
-  // fetch server config (game address)
-  (async ()=>{ try { const r = await fetch('/api/config'); if (r.ok) { const c = await r.json(); window.GAME_TON_ADDRESS = c.GAME_TON_ADDRESS; const ga = qs('#gameAddress'); if (ga) ga.textContent = c.GAME_TON_ADDRESS || 'GAME_TON_ADDRESS'; } } catch(e){} })();
 
 })();
