@@ -38,6 +38,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Global exception handler
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception in {request.url.path}: {type(exc).__name__}: {str(exc)}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Internal server error: {type(exc).__name__}"}
+    )
+
 # Add middleware BEFORE routers
 app.add_middleware(
     CORSMiddleware,
@@ -47,19 +59,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Add request logging middleware
+# Add request logging middleware with detailed error info
 @app.middleware("http")
 async def log_requests(request, call_next):
-    logger.info(f"→ {request.method} {request.url.path}")
+    path = request.url.path
+    logger.info(f"→ {request.method} {path}")
     try:
         response = await call_next(request)
-        logger.info(f"← {request.method} {request.url.path} - {response.status_code}")
+        logger.info(f"← {request.method} {path} - {response.status_code}")
         return response
     except Exception as e:
-        logger.error(f"✗ {request.method} {request.url.path} - Error: {e}", exc_info=True)
-        raise
+        logger.error(f"��� {request.method} {path} - Exception: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 api_router = APIRouter(prefix="/api")
+
+# Dependency to ensure database is initialized
+async def get_db():
+    if not db_pool:
+        raise HTTPException(status_code=503, detail="Database not initialized")
+    return db_pool
 
 # Game state management
 active_games: Dict[str, dict] = {}
@@ -155,16 +174,33 @@ async def init_db():
 # API Routes
 @api_router.get("/")
 async def root():
-    return {"message": "Telegram Worm Game API", "status": "running"}
+    return {"message": "Telegram Worm Game API", "status": "running", "db_pool_initialized": db_pool is not None}
+
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint"""
+    return {
+        "status": "ok",
+        "db_initialized": db_pool is not None,
+        "frontend_available": frontend_build_dir.exists()
+    }
 
 @api_router.post("/player/register")
-async def register_player(player: Player):
-    async with db_pool.acquire() as conn:
-        await conn.execute(
-            'INSERT INTO players (user_id, username, wallet_address, balance) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET username = $2',
-            player.user_id, player.username, player.wallet_address, player.balance
-        )
-    return {"status": "success", "message": "Player registered"}
+async def register_player(player: Player, db = None):
+    if not db_pool:
+        logger.error("register_player: db_pool is None!")
+        raise HTTPException(status_code=503, detail="Database not initialized")
+    try:
+        async with db_pool.acquire() as conn:
+            await conn.execute(
+                'INSERT INTO players (user_id, username, wallet_address, balance) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET username = $2',
+                player.user_id, player.username, player.wallet_address, player.balance
+            )
+        logger.info(f"Player registered: user_id={player.user_id}, username={player.username}")
+        return {"status": "success", "message": "Player registered"}
+    except Exception as e:
+        logger.error(f"register_player error: {type(e).__name__}: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/player/{user_id}")
 async def get_player(user_id: int):
