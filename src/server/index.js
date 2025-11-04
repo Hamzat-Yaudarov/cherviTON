@@ -14,6 +14,12 @@ app.use(bodyParser.json());
 const __dirname = path.resolve();
 const publicDir = path.join(__dirname, 'public');
 app.use(express.static(publicDir));
+// serve miniapp at root
+app.get('/', (req,res)=>{
+  res.sendFile(path.join(publicDir, 'miniapp', 'index.html'));
+});
+// favicon
+app.get('/favicon.ico', (req,res)=> res.status(204).end());
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
@@ -313,7 +319,7 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
           url = `${base}${base.includes('?') ? '&' : '?'}username=${encodeURIComponent(username)}`;
         }
         await createUserIfNotExists(username);
-        await ctx.reply('Добро пожаловать! Нажмите кнопку, чтобы отк��ыть мини-игру.', Markup.inlineKeyboard([
+        await ctx.reply('Добро пожаловать! Нажмите кнопку, чтобы открыть мини-игру.', Markup.inlineKeyboard([
           Markup.button.webApp('Начать игру', url)
         ]));
       });
@@ -357,5 +363,6 @@ app.post('/api/ton/deposit_webhook', async (req,res)=>{
   }
 
   const PORT = process.env.PORT || 3000;
-  server.listen(PORT, ()=>console.log('Server listening on', PORT));
+  const HOST = process.env.HOST || '0.0.0.0';
+  server.listen(PORT, HOST, ()=>console.log('Server listening on', PORT, 'host', HOST));
 })();
