@@ -5,8 +5,24 @@
   function getQuery() { return Object.fromEntries(new URLSearchParams(location.search)); }
 
   const query = getQuery();
-  const telegram_id = query.telegram_id;
-  const usernameParam = decodeURIComponent(query.username || 'Player');
+  // Allow telegram WebApp init data to override query params
+  let telegram_id = query.telegram_id || null;
+  let usernameParam = decodeURIComponent(query.username || 'Player');
+
+  // If running inside Telegram Web App, prefer initData user
+  if (window.Telegram && window.Telegram.WebApp) {
+    try {
+      const tg = window.Telegram.WebApp;
+      const init = tg.initDataUnsafe || {};
+      const user = init.user || {};
+      if (user && user.id) telegram_id = String(user.id);
+      if (user && (user.username || user.first_name)) {
+        usernameParam = user.username || (user.first_name + (user.last_name ? ' ' + user.last_name : ''));
+      }
+      // optionally expand UI
+      try { tg.expand && tg.expand(); } catch(e){}
+    } catch(e) { console.warn('Telegram WebApp parse error', e); }
+  }
 
   const playerNickEl = qs('#playerNick');
   const playerBalanceEl = qs('#playerBalance');
@@ -48,6 +64,16 @@
   let leaveTimerEl = qs('#leaveTimer');
 
   playerNickEl.textContent = usernameParam;
+
+  // If inside Telegram, attempt to auto-open wallet connect modal (user still must confirm)
+  if (window.Telegram && window.Telegram.WebApp) {
+    setTimeout(()=>{
+      // open wallet modal and try to initiate TonConnect connect (may be blocked in some clients)
+      qs('#walletModal').style.display = 'flex';
+      // try to auto-click TonConnect button
+      setTimeout(()=>{ try { qs('#tcConnect') && qs('#tcConnect').click(); } catch(e){} }, 300);
+    }, 500);
+  }
 
   function setBalance(b) { balance = b; playerBalanceEl.innerHTML = `TON: ${balance} <button id="balanceBtn">Пополнить</button> <span id="leaveTimer" class="leave-timer" style="margin-left:12px;font-size:13px;color:#cbd5e1"></span>`; const btn = qs('#balanceBtn'); btn && btn.addEventListener('click', onBalanceClick); leaveTimerEl = qs('#leaveTimer'); }
 
@@ -199,7 +225,7 @@
         alert('TonConnect не доступен в этом окружении.');
         return;
       }
-      alert('Транзакция инициирована. Пожал��йста подождите — начнётся проверка поступления.');
+      alert('Транзакция инициирована. Пожалуйста подождите — начнётся проверка поступления.');
       const fromAddr = connectedWalletAddress || manualAddressInput.value && manualAddressInput.value.trim();
       if (!fromAddr) { alert('Не удалось определить адрес отправителя. Используйте кнопку "Проверить перевод" после отправки.'); return; }
       let foundTotal = 0;

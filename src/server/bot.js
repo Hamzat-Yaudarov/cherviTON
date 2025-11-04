@@ -23,16 +23,23 @@ bot.onText(/\/start/, async msg => {
     console.error('Error ensuring player in DB', err);
   }
 
-  const url = `${WEB_APP_URL.replace(/\/$/, '')}/miniapp/index.html?telegram_id=${encodeURIComponent(telegram_id)}&username=${encodeURIComponent(username)}`;
+  // Prefer Telegram Web App button so MiniApp opens inside Telegram
+  const webAppUrl = `${WEB_APP_URL.replace(/\/$/, '')}/miniapp/index.html`;
 
-  const text = `Привет, ${username}! Добро пожа��овать. Нажми кнопку, чтобы открыть мини-приложение и начать игру.`;
+  const text = `Привет, ${username}! Добро пожаловать. Нажми кнопку, чтобы открыть мини-приложение и начать игру.`;
   const opts = {
     reply_markup: {
-      inline_keyboard: [[{ text: 'Начать игру', url }]]
+      inline_keyboard: [[{ text: 'Начать игру', web_app: { url: webAppUrl } }]]
     }
   };
 
-  bot.sendMessage(chatId, text, opts).catch(err => console.error('Failed to send /start reply', err));
+  bot.sendMessage(chatId, text, opts).catch(err => {
+    console.error('Failed to send /start reply (web_app), falling back to url', err);
+    // fallback to url if web_app is not supported
+    const url = `${webAppUrl}?telegram_id=${encodeURIComponent(telegram_id)}&username=${encodeURIComponent(username)}`;
+    const fallback = { reply_markup: { inline_keyboard: [[{ text: 'Начать игру', url }]] } };
+    bot.sendMessage(chatId, text, fallback).catch(e => console.error('Failed fallback send', e));
+  });
 });
 
 module.exports = bot;
