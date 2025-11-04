@@ -3,7 +3,7 @@ import { logger } from '../utils/logger.js';
 import { updateUserCoins } from '../db/users.js';
 import { query } from '../db/connection.js';
 
-const STAR_PRICES = {
+export const STAR_PRICES = {
   '100_stars': { stars: 100, description: '100 игровых звёзд' },
   '500_stars': { stars: 500, description: '500 игровых звёзд (подешевле!)' },
   '1000_stars': { stars: 1000, description: '1000 игровых звёзд (ещё подешевле!)' },
@@ -26,7 +26,7 @@ export async function handlePreCheckoutQuery(ctx: Context) {
 
 export async function handleSuccessfulPayment(ctx: Context) {
   try {
-    const payment = ctx.message?.successful_payment;
+    const payment = (ctx.message as any)?.successful_payment;
     const user = ctx.from;
 
     if (!payment || !user) return;

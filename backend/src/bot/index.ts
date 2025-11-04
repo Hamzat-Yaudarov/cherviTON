@@ -20,7 +20,7 @@ bot.command('stats', handleStats);
 
 // Inline buttons for payments
 bot.action(/^buy_(\w+)$/, async (ctx) => {
-  const packageId = ctx.match[1] as keyof typeof import('./payments.js').STAR_PRICES;
+  const packageId = ctx.match[1] as '100_stars' | '500_stars' | '1000_stars' | '2500_stars';
   await sendPaymentInvoice(ctx, packageId);
 });
 
