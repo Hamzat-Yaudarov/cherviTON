@@ -26,6 +26,18 @@
       try {
         const debugPayload = { initData: tg.initData || null, initDataUnsafe: tg.initDataUnsafe || null };
         fetch('/api/debug/tonconnect', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ telegram_init: debugPayload }) }).catch(e=>console.warn('debug send failed', e));
+        // If initData/user is missing, show it to the user so they can paste logs for us
+        if (!(tg.initData || tg.initDataUnsafe) || !(tg.initDataUnsafe && tg.initDataUnsafe.user)) {
+          try {
+            const info = JSON.stringify({ initData: tg.initData || null, initDataUnsafe: tg.initDataUnsafe || null }, null, 2);
+            // show a dismissible overlay instead of alert for better UX
+            const dbg = document.createElement('pre'); dbg.style.position='fixed'; dbg.style.left='8px'; dbg.style.right='8px'; dbg.style.bottom='8px'; dbg.style.maxHeight='40%'; dbg.style.overflow='auto'; dbg.style.background='rgba(0,0,0,0.8)'; dbg.style.color='#fff'; dbg.style.padding='12px'; dbg.style.zIndex='9999'; dbg.style.borderRadius='8px'; dbg.textContent = 'Telegram initData (debug):\n' + info + '\n\nСкопируйте и пришлите это в чат поддержки.';
+            const close = document.createElement('button'); close.textContent='Закрыть'; close.style.marginLeft='8px'; close.onclick = ()=>{ dbg.remove(); };
+            dbg.appendChild(document.createElement('br'));
+            dbg.appendChild(close);
+            document.body.appendChild(dbg);
+          } catch(e) { console.warn('show debug failed', e); }
+        }
       } catch(e) { console.warn('debug send error', e); }
     } catch(e) { console.warn('Telegram WebApp parse error', e); }
   }
@@ -254,7 +266,7 @@
           await fetch('/api/debug/tonconnect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ telegram_id, username: usernameParam, result }) });
         } catch (e) { console.error('Failed sending debug', e); }
         // Show clearer instructions to user
-        const proceed = confirm('Кошелек подключён, но адрес не получен. Мы отправили отладочные данные. Попробовать снова? (OK — повторить подключение, Отме��а — проверить перевод вручную)');
+        const proceed = confirm('Кошелек подключён, но адрес не получен. Мы отправили отладочные данные. Попробовать снова? (OK — повторить подключение, Отмена — проверить перевод вручную)');
         qs('#walletModal').style.display = 'none';
         if (proceed) {
           // reopen modal for retry
