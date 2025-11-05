@@ -13,10 +13,11 @@ interface GameCanvasProps {
 export function GameCanvas({ user, betAmount, onGameOver, onExit }: GameCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameClientRef = useRef<GameClient | null>(null);
-  const [gameState, setGameState] = useState<'loading' | 'playing' | 'dead'>('loading');
+  const [gameState, setGameState] = useState<'loading' | 'playing' | 'dead' | 'error'>('loading');
   const [score, setScore] = useState(0);
   const [playersCount, setPlayersCount] = useState(0);
   const [playerSize, setPlayerSize] = useState(5);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -48,7 +49,9 @@ export function GameCanvas({ user, betAmount, onGameOver, onExit }: GameCanvasPr
       .then(() => setGameState('playing'))
       .catch((error) => {
         console.error('Failed to connect to game:', error);
-        onExit();
+        const message = error instanceof Error ? error.message : 'Failed to connect to game';
+        setErrorMessage(message);
+        setGameState('error');
       });
 
     // Handle device motion for tilt-to-move
@@ -124,6 +127,15 @@ export function GameCanvas({ user, betAmount, onGameOver, onExit }: GameCanvasPr
           <div className="game-loading">
             <div className="spinner"></div>
             <p>Подключение к игре...</p>
+          </div>
+        )}
+        {gameState === 'error' && (
+          <div className="game-error-screen">
+            <h2>⚠️ Ошибка подключения</h2>
+            <p className="game-error-message">{errorMessage}</p>
+            <button className="btn-primary" onClick={handleExitClick}>
+              ← Назад в меню
+            </button>
           </div>
         )}
         {gameState === 'dead' && (

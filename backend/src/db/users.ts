@@ -29,10 +29,10 @@ export async function getOrCreateUser(tgId: number, userData?: {
       return result.rows[0];
     }
 
-    // Create new user
+    // Create new user with starting coins
     const createResult = await query(
-      `INSERT INTO users (tg_id, username, first_name, last_name) 
-       VALUES ($1, $2, $3, $4) 
+      `INSERT INTO users (tg_id, username, first_name, last_name, coins)
+       VALUES ($1, $2, $3, $4, 1000)
        RETURNING *`,
       [tgId, userData?.username, userData?.first_name, userData?.last_name]
     );

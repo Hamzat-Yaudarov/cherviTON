@@ -69,11 +69,21 @@ export class GameClient {
         // Construct WebSocket URL dynamically based on current location
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host;
-        const wsUrl = `${protocol}//${host}?tg_id=${this.tgId}`;
+        const wsUrl = `${protocol}//${host}/?tg_id=${this.tgId}`;
+        console.log('Connecting to WebSocket:', wsUrl);
         this.ws = new WebSocket(wsUrl);
 
+        // Set timeout for connection
+        const connectionTimeout = setTimeout(() => {
+          if (this.playerId === null) {
+            console.error('WebSocket connection timeout');
+            this.ws?.close();
+            reject(new Error('Game connection timeout - please try again'));
+          }
+        }, 10000); // 10 second timeout
+
         this.ws.onopen = () => {
-          console.log('WebSocket connected');
+          console.log('WebSocket connected, sending join message');
           this.sendMessage({
             type: 'join',
             payload: { betAmount: this.betAmount }
@@ -83,12 +93,19 @@ export class GameClient {
         this.ws.onmessage = (event) => {
           try {
             const message = JSON.parse(event.data);
+            console.log('Received WebSocket message:', message.type);
             this.handleMessage(message);
-            
+
             if (message.type === 'joined') {
+              clearTimeout(connectionTimeout);
               this.playerId = message.player.id;
+              console.log('Game joined, player ID:', this.playerId);
               resolve();
               this.startRenderLoop();
+            } else if (message.type === 'error') {
+              clearTimeout(connectionTimeout);
+              console.error('Game error:', message.message);
+              reject(new Error(message.message || 'Game connection error'));
             }
           } catch (error) {
             console.error('Error parsing WebSocket message:', error);
@@ -96,11 +113,13 @@ export class GameClient {
         };
 
         this.ws.onerror = (error) => {
+          clearTimeout(connectionTimeout);
           console.error('WebSocket error:', error);
-          reject(error);
+          reject(new Error('WebSocket connection failed'));
         };
 
         this.ws.onclose = () => {
+          clearTimeout(connectionTimeout);
           console.log('WebSocket closed');
           if (this.callbacks.onGameOver && this.playerId) {
             this.callbacks.onGameOver(Math.floor(this.gameState.player?.score ?? 0), 0);

@@ -33,12 +33,20 @@ export class GameWebSocketHandler {
     const tgIdStr = params.get('tg_id');
     const playerId = `player_${Date.now()}_${Math.random()}`;
 
+    logger.info(`WebSocket connection attempt, URL: ${url}, tg_id: ${tgIdStr}`);
+
     if (!tgIdStr) {
+      logger.warn(`WebSocket connection rejected: tg_id is required`);
       ws.close(1008, 'tg_id is required');
       return;
     }
 
     const tgId = parseInt(tgIdStr);
+    if (isNaN(tgId)) {
+      logger.warn(`WebSocket connection rejected: invalid tg_id: ${tgIdStr}`);
+      ws.close(1008, 'invalid tg_id');
+      return;
+    }
 
     const session: PlayerSession = {
       playerId,
@@ -48,7 +56,7 @@ export class GameWebSocketHandler {
     };
 
     this.sessions.set(playerId, session);
-    logger.info(`New WebSocket connection: ${playerId} (tgId: ${tgId})`);
+    logger.info(`New WebSocket connection established: ${playerId} (tgId: ${tgId})`);
 
     ws.on('message', (data) => this.handleMessage(playerId, data));
     ws.on('close', () => this.handleClose(playerId));
@@ -65,9 +73,13 @@ export class GameWebSocketHandler {
   private async handleMessage(playerId: string, data: WebSocket.Data): Promise<void> {
     try {
       const session = this.sessions.get(playerId);
-      if (!session) return;
+      if (!session) {
+        logger.warn(`Received message for unknown session: ${playerId}`);
+        return;
+      }
 
       const message: GameMessage = JSON.parse(data.toString());
+      logger.info(`Received message from ${playerId}: ${message.type}`);
 
       switch (message.type) {
         case 'join':
@@ -82,18 +94,22 @@ export class GameWebSocketHandler {
         case 'ping':
           session.ws.send(JSON.stringify({ type: 'pong' }));
           break;
+        default:
+          logger.warn(`Unknown message type from ${playerId}: ${message.type}`);
       }
     } catch (error) {
-      logger.error('Error handling WebSocket message', error);
+      logger.error(`Error handling WebSocket message from ${playerId}`, error);
     }
   }
 
   private async handlePlayerJoin(session: PlayerSession, payload: any): Promise<void> {
     try {
       const { betAmount } = payload;
+      logger.info(`Player ${session.playerId} (tgId: ${session.tgId}) attempting to join with bet: ${betAmount}`);
 
       const user = await getUser(session.tgId);
       if (!user) {
+        logger.warn(`Join failed: User not found for tgId: ${session.tgId}`);
         session.ws.send(JSON.stringify({
           type: 'error',
           message: 'User not found'
@@ -102,6 +118,7 @@ export class GameWebSocketHandler {
       }
 
       if (user.coins < betAmount) {
+        logger.warn(`Join failed: Insufficient coins for ${user.username}: has ${user.coins}, needs ${betAmount}`);
         session.ws.send(JSON.stringify({
           type: 'error',
           message: 'Insufficient coins'
@@ -111,6 +128,7 @@ export class GameWebSocketHandler {
 
       // Get server for this player
       const server = this.manager.getServerForNewPlayer();
+      logger.info(`Assigned server ${server.id} to player ${session.playerId}`);
 
       // Create player
       const x = Math.random() * server.mapSize;
@@ -126,6 +144,7 @@ export class GameWebSocketHandler {
 
       // Add player to server
       if (!server.addPlayer(player)) {
+        logger.warn(`Join failed: Server ${server.id} is full`);
         session.ws.send(JSON.stringify({
           type: 'error',
           message: 'Server is full'
@@ -136,21 +155,24 @@ export class GameWebSocketHandler {
       // Deduct bet from coins
       const db = await import('../db/users.js');
       await db.updateUserCoins(session.tgId, -betAmount);
+      logger.info(`Deducted ${betAmount} coins from ${user.username}`);
 
       session.server = server;
       session.player = player;
 
       // Send join confirmation
-      session.ws.send(JSON.stringify({
+      const joinedMessage = {
         type: 'joined',
         serverId: server.id,
         player: player.getState(),
         mapSize: server.mapSize
-      }));
+      };
+      logger.info(`Sending joined message to player ${session.playerId}`);
+      session.ws.send(JSON.stringify(joinedMessage));
 
-      logger.info(`Player ${user.username} joined game server ${server.id} with bet ${betAmount}`);
+      logger.info(`Player ${user.username} successfully joined game server ${server.id} with bet ${betAmount}`);
     } catch (error) {
-      logger.error('Error in handlePlayerJoin', error);
+      logger.error(`Error in handlePlayerJoin for player ${session.playerId}`, error);
       session.ws.send(JSON.stringify({
         type: 'error',
         message: 'Failed to join game'
