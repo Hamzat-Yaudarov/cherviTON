@@ -179,11 +179,17 @@ export class GameClient {
                 players: state.players,
                 pellets: state.pellets
             };
+            // Check if player just died
+            if (!ownPlayer.alive && this.gameState.player?.alive !== false) {
+                const earnings = Math.floor((ownPlayer.score ?? 0) * 0.1);
+                this.callbacks.onGameOver?.(Math.floor(ownPlayer.score ?? 0), earnings);
+            }
         }
-        else if (this.gameState.player && !this.gameState.player.alive) {
-            // Player is dead
+        else if (this.gameState.player && this.gameState.player.alive) {
+            // Player was alive but is no longer in the player list = dead
             const earnings = Math.floor((this.gameState.player.score ?? 0) * 0.1);
             this.callbacks.onGameOver?.(Math.floor(this.gameState.player.score ?? 0), earnings);
+            this.gameState.player.alive = false;
         }
         this.callbacks.onStateUpdate?.(this.gameState);
     }
@@ -261,7 +267,7 @@ export class GameClient {
         this.gameState.pellets.forEach(pellet => {
             ctx.fillStyle = '#ffd700';
             ctx.beginPath();
-            ctx.arc(pellet.x % this.canvas.width, pellet.y % this.canvas.height, pellet.size + 1, 0, Math.PI * 2);
+            ctx.arc(pellet.x % this.canvas.width, pellet.y % this.canvas.height, Math.max(pellet.size + 2, 3), 0, Math.PI * 2);
             ctx.fill();
         });
     }
@@ -269,28 +275,38 @@ export class GameClient {
         const ctx = this.ctx;
         this.gameState.players.forEach(player => {
             const isOwnPlayer = player.id === this.playerId;
-            // Draw body
-            ctx.fillStyle = isOwnPlayer ? '#00ff00' : `hsl(${Math.random() * 360}, 100%, 50%)`;
+            // Draw body segments
             player.body.forEach((segment, index) => {
                 const opacity = 1 - (index / player.body.length) * 0.5;
                 ctx.globalAlpha = opacity;
+                // Body color
+                if (isOwnPlayer) {
+                    ctx.fillStyle = '#00ff00';
+                }
+                else {
+                    const hue = (player.id.charCodeAt(0) || 0) % 360;
+                    ctx.fillStyle = `hsl(${hue}, 100%, 45%)`;
+                }
                 ctx.beginPath();
-                ctx.arc(segment.x % this.canvas.width, segment.y % this.canvas.height, player.size * 0.8, 0, Math.PI * 2);
+                ctx.arc(segment.x % this.canvas.width, segment.y % this.canvas.height, player.size * 0.75, 0, Math.PI * 2);
                 ctx.fill();
             });
             ctx.globalAlpha = 1;
-            // Draw head
-            ctx.fillStyle = isOwnPlayer ? '#00ff00' : '#ff6b00';
+            // Draw head (larger and brighter)
             const head = player.body[0] || { x: player.x, y: player.y };
+            ctx.fillStyle = isOwnPlayer ? '#00ff00' : `hsl(${(player.id.charCodeAt(0) || 0) % 360}, 100%, 55%)`;
+            ctx.shadowColor = isOwnPlayer ? 'rgba(0, 255, 0, 0.5)' : 'rgba(255, 100, 0, 0.3)';
+            ctx.shadowBlur = 10;
             ctx.beginPath();
-            ctx.arc(head.x % this.canvas.width, head.y % this.canvas.height, player.size, 0, Math.PI * 2);
+            ctx.arc(head.x % this.canvas.width, head.y % this.canvas.height, player.size * 1.2, 0, Math.PI * 2);
             ctx.fill();
-            // Draw username
+            ctx.shadowColor = 'transparent';
+            // Draw username for own player
             if (isOwnPlayer) {
                 ctx.fillStyle = '#00ff00';
-                ctx.font = 'bold 14px Arial';
+                ctx.font = 'bold 16px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText(player.username, head.x % this.canvas.width, (head.y % this.canvas.height) - player.size - 5);
+                ctx.fillText(player.username, head.x % this.canvas.width, (head.y % this.canvas.height) - player.size * 1.5);
             }
         });
     }

@@ -19,16 +19,16 @@ export class Player {
   x: number;
   y: number;
   direction: number = 0; // angle in radians
-  size: number = 5; // radius
+  size: number = 15; // radius - increased from 5
   body: Array<{ x: number; y: number }> = [];
-  speed: number = 4;
+  speed: number = 2; // decreased from 4 for smoother movement
   alive: boolean = true;
   score: number = 0;
   betAmount: number = 0;
   joinTime: number;
 
-  static readonly MIN_SIZE = 5;
-  static readonly MAX_SIZE = 50;
+  static readonly MIN_SIZE = 15;
+  static readonly MAX_SIZE = 80;
   static readonly GRID_SIZE = 1000;
 
   constructor(
@@ -46,11 +46,11 @@ export class Player {
     this.y = y;
     this.betAmount = betAmount;
     this.joinTime = Date.now();
-    
-    // Initialize body
-    for (let i = 0; i < 10; i++) {
+
+    // Initialize body with more segments
+    for (let i = 0; i < 20; i++) {
       this.body.push({
-        x: this.x - (i * 2),
+        x: this.x - (i * 3),
         y: this.y
       });
     }
