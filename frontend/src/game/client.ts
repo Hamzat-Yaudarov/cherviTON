@@ -66,7 +66,10 @@ export class GameClient {
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        const wsUrl = `${(import.meta.env.VITE_WS_URL as string) || 'ws://localhost:8080'}?tg_id=${this.tgId}`;
+        // Construct WebSocket URL dynamically based on current location
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        const wsUrl = `${protocol}//${host}?tg_id=${this.tgId}`;
         this.ws = new WebSocket(wsUrl);
 
         this.ws.onopen = () => {
