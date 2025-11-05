@@ -1,5 +1,4 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import React from 'react';
 import { hapticFeedback } from '../utils/telegram';
 import '../styles/bet-selector.css';
 const BET_OPTIONS = [25, 50, 100, 200];

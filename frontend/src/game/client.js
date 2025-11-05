@@ -84,10 +84,32 @@ export class GameClient {
     async connect() {
         return new Promise((resolve, reject) => {
             try {
-                const wsUrl = `${import.meta.env.VITE_WS_URL || 'ws://localhost:8080'}?tg_id=${this.tgId}`;
+                // Construct WebSocket URL
+                // In dev: connect to localhost:8080 backend
+                // In prod: connect to same host as frontend
+                let wsUrl;
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    // Development: connect to backend on port 8080
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    wsUrl = `${protocol}//localhost:8080/?tg_id=${this.tgId}`;
+                }
+                else {
+                    // Production: connect to same host as frontend
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    wsUrl = `${protocol}//${window.location.host}/?tg_id=${this.tgId}`;
+                }
+                console.log('Connecting to WebSocket:', wsUrl);
                 this.ws = new WebSocket(wsUrl);
+                // Set timeout for connection
+                const connectionTimeout = setTimeout(() => {
+                    if (this.playerId === null) {
+                        console.error('WebSocket connection timeout');
+                        this.ws?.close();
+                        reject(new Error('Game connection timeout - please try again'));
+                    }
+                }, 10000); // 10 second timeout
                 this.ws.onopen = () => {
-                    console.log('WebSocket connected');
+                    console.log('WebSocket connected, sending join message');
                     this.sendMessage({
                         type: 'join',
                         payload: { betAmount: this.betAmount }
@@ -96,11 +118,19 @@ export class GameClient {
                 this.ws.onmessage = (event) => {
                     try {
                         const message = JSON.parse(event.data);
+                        console.log('Received WebSocket message:', message.type);
                         this.handleMessage(message);
                         if (message.type === 'joined') {
+                            clearTimeout(connectionTimeout);
                             this.playerId = message.player.id;
+                            console.log('Game joined, player ID:', this.playerId);
                             resolve();
                             this.startRenderLoop();
+                        }
+                        else if (message.type === 'error') {
+                            clearTimeout(connectionTimeout);
+                            console.error('Game error:', message.message);
+                            reject(new Error(message.message || 'Game connection error'));
                         }
                     }
                     catch (error) {
@@ -108,10 +138,12 @@ export class GameClient {
                     }
                 };
                 this.ws.onerror = (error) => {
+                    clearTimeout(connectionTimeout);
                     console.error('WebSocket error:', error);
-                    reject(error);
+                    reject(new Error('WebSocket connection failed'));
                 };
                 this.ws.onclose = () => {
+                    clearTimeout(connectionTimeout);
                     console.log('WebSocket closed');
                     if (this.callbacks.onGameOver && this.playerId) {
                         this.callbacks.onGameOver(Math.floor(this.gameState.player?.score ?? 0), 0);

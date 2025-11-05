@@ -29,8 +29,17 @@ export class GameWebSocketHandler {
   }
 
   handleConnection(ws: WebSocket, url: string): void {
-    const params = new URLSearchParams(url);
-    const tgIdStr = params.get('tg_id');
+    // Parse query parameters from WebSocket URL
+    // URL format: /?tg_id=123456789
+    const queryIndex = url.indexOf('?');
+    let tgIdStr: string | null = null;
+
+    if (queryIndex !== -1) {
+      const queryString = url.substring(queryIndex + 1);
+      const params = new URLSearchParams(queryString);
+      tgIdStr = params.get('tg_id');
+    }
+
     const playerId = `player_${Date.now()}_${Math.random()}`;
 
     logger.info(`WebSocket connection attempt, URL: ${url}, tg_id: ${tgIdStr}`);

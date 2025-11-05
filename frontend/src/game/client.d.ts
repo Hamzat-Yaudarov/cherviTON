@@ -9,6 +9,7 @@ export interface GameState {
             x: number;
             y: number;
         }>;
+        alive: boolean;
     };
     players: Array<{
         id: string;
@@ -21,6 +22,7 @@ export interface GameState {
             y: number;
         }>;
         username: string;
+        alive: boolean;
     }>;
     pellets: Array<{
         id: string;

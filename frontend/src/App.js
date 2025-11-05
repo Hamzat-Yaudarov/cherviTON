@@ -1,5 +1,5 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getTelegramUser } from './utils/telegram';
 import { getBalance, deductCoins, addCoins } from './api/client';
 import { GameCanvas } from './components/GameCanvas';

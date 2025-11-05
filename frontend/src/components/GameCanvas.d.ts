@@ -9,6 +9,6 @@ interface GameCanvasProps {
     onGameOver: (score: number, earnings: number) => void;
     onExit: () => void;
 }
-export declare function GameCanvas({ user, betAmount, onGameOver, onExit }: GameCanvasProps): any;
+export declare function GameCanvas({ user, betAmount, onGameOver, onExit }: GameCanvasProps): import("react/jsx-runtime").JSX.Element;
 export {};
 //# sourceMappingURL=GameCanvas.d.ts.map
