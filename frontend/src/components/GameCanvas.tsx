@@ -89,7 +89,7 @@ export function GameCanvas({ user, betAmount, onGameOver, onExit }: GameCanvasPr
       canvas.removeEventListener('touchmove', handleTouchMove);
       gameClient.disconnect();
     };
-  }, [user.id, betAmount, gameState, onGameOver, onExit]);
+  }, [user.id, betAmount, onGameOver, onExit]);
 
   const handleExitClick = () => {
     if (gameClientRef.current) {

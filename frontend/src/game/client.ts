@@ -58,8 +58,9 @@ export class GameClient {
   private resizeCanvas(): void {
     const container = this.canvas.parentElement;
     if (container) {
-      this.canvas.width = container.clientWidth;
-      this.canvas.height = container.clientHeight - 120;
+      this.canvas.width = Math.max(container.clientWidth, 320);
+      this.canvas.height = Math.max(container.clientHeight - 120, 200);
+      console.log(`Canvas resized to: ${this.canvas.width}x${this.canvas.height}`);
     }
   }
 
@@ -197,8 +198,13 @@ export class GameClient {
   }
 
   private startRenderLoop(): void {
+    console.log('Starting render loop');
     const render = () => {
-      this.render();
+      try {
+        this.render();
+      } catch (error) {
+        console.error('Error in render loop:', error);
+      }
       this.animationFrameId = requestAnimationFrame(render);
     };
     this.animationFrameId = requestAnimationFrame(render);
@@ -207,6 +213,11 @@ export class GameClient {
   private render(): void {
     const { width, height } = this.canvas;
     const ctx = this.ctx;
+
+    if (width === 0 || height === 0) {
+      console.warn('Canvas has zero dimensions:', width, height);
+      return;
+    }
 
     // Clear canvas
     ctx.fillStyle = '#1a1a1a';

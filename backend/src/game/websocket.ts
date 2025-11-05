@@ -203,17 +203,22 @@ export class GameWebSocketHandler {
     if (!session) return;
 
     if (session.server && session.player) {
-      // Check if player can leave (must be alive or 5 minutes passed)
-      const aliveTime = Date.now() - session.player.joinTime;
-      const minPlayTime = 5 * 60 * 1000; // 5 minutes
+      // Handle player death if still alive
+      if (session.player.alive) {
+        session.player.kill();
+        const earnings = Math.floor((session.player.score ?? 0) * 0.1);
 
-      if (session.player.alive && aliveTime < minPlayTime) {
-        // Cannot leave while alive and within 5 minutes
-        session.ws.send(JSON.stringify({
-          type: 'error',
-          message: `Cannot leave while alive. Play time: ${Math.round(aliveTime / 1000)}s / 300s`
-        }));
-        return;
+        // Update database with final stats
+        const db = require('../db/users.js');
+        db.updateUserCoins(session.tgId, earnings).catch((error: any) => {
+          logger.error('Error updating coins on disconnect', error);
+        });
+
+        db.updateGameStats(session.tgId, earnings, session.player.score).catch((error: any) => {
+          logger.error('Error updating game stats on disconnect', error);
+        });
+
+        logger.info(`Player ${session.player.username} disconnected while alive, score: ${session.player.score}`);
       }
 
       session.server.removePlayer(playerId);
@@ -221,7 +226,7 @@ export class GameWebSocketHandler {
     }
 
     this.sessions.delete(playerId);
-    logger.info(`Player ${playerId} disconnected`);
+    logger.info(`Player session ${playerId} removed`);
   }
 
   private handleClose(playerId: string): void {
