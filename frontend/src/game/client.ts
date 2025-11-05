@@ -66,10 +66,21 @@ export class GameClient {
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        // Construct WebSocket URL dynamically based on current location
-        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.host;
-        const wsUrl = `${protocol}//${host}/?tg_id=${this.tgId}`;
+        // Construct WebSocket URL
+        // In dev: connect to localhost:8080 backend
+        // In prod: connect to same host as frontend
+        let wsUrl: string;
+
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+          // Development: connect to backend on port 8080
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsUrl = `${protocol}//localhost:8080/?tg_id=${this.tgId}`;
+        } else {
+          // Production: connect to same host as frontend
+          const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+          wsUrl = `${protocol}//${window.location.host}/?tg_id=${this.tgId}`;
+        }
+
         console.log('Connecting to WebSocket:', wsUrl);
         this.ws = new WebSocket(wsUrl);
 
