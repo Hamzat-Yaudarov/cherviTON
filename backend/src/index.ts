@@ -3,11 +3,16 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { startBot } from './bot/index.js';
 import { initializeDatabase } from './db/schema.js';
 import { GameWebSocketHandler } from './game/websocket.js';
 import apiRoutes from './api/routes.js';
 import { logger } from './utils/logger.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -25,6 +30,19 @@ app.get('/health', (req, res) => {
 
 // API routes
 app.use('/api', apiRoutes);
+
+// Serve static files from frontend dist
+const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendDistPath));
+
+// SPA fallback - serve index.html for all non-API routes
+app.get('*', (req, res) => {
+  // Don't interfere with WebSocket connections
+  if (req.path.startsWith('/api') || req.headers.upgrade === 'websocket') {
+    return res.status(404).json({ error: 'Not found' });
+  }
+  res.sendFile(path.join(frontendDistPath, 'index.html'));
+});
 
 // WebSocket setup
 const wss = new WebSocketServer({ server: httpServer });
