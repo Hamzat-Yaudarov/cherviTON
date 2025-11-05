@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { getUser, updateUserCoins, setUserCoins } from '../db/users.js';
+import { getUser, updateUserCoins, setUserCoins, getOrCreateUser } from '../db/users.js';
 import { query } from '../db/connection.js';
 import { logger } from '../utils/logger.js';
 
@@ -9,16 +9,12 @@ const router = Router();
 router.get('/balance', async (req: Request, res: Response) => {
   try {
     const tgId = req.query.tg_id as string;
-    
+
     if (!tgId) {
       return res.status(400).json({ error: 'tg_id is required' });
     }
 
-    const user = await getUser(parseInt(tgId));
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const user = await getOrCreateUser(parseInt(tgId));
 
     res.json({
       coins: user.coins,
@@ -36,16 +32,12 @@ router.get('/balance', async (req: Request, res: Response) => {
 router.get('/user', async (req: Request, res: Response) => {
   try {
     const tgId = req.query.tg_id as string;
-    
+
     if (!tgId) {
       return res.status(400).json({ error: 'tg_id is required' });
     }
 
-    const user = await getUser(parseInt(tgId));
-    
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const user = await getOrCreateUser(parseInt(tgId));
 
     res.json({
       id: user.id,
@@ -69,22 +61,19 @@ router.get('/user', async (req: Request, res: Response) => {
 router.post('/deduct-coins', async (req: Request, res: Response) => {
   try {
     const { tg_id, amount } = req.body;
-    
+
     if (!tg_id || !amount) {
       return res.status(400).json({ error: 'tg_id and amount are required' });
     }
 
-    const user = await getUser(tg_id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const user = await getOrCreateUser(tg_id);
 
     if (user.coins < amount) {
       return res.status(400).json({ error: 'Insufficient coins' });
     }
 
     const updated = await updateUserCoins(tg_id, -amount);
-    
+
     res.json({
       coins: updated.coins,
       message: `Deducted ${amount} coins`
@@ -99,18 +88,15 @@ router.post('/deduct-coins', async (req: Request, res: Response) => {
 router.post('/add-coins', async (req: Request, res: Response) => {
   try {
     const { tg_id, amount } = req.body;
-    
+
     if (!tg_id || !amount) {
       return res.status(400).json({ error: 'tg_id and amount are required' });
     }
 
-    const user = await getUser(tg_id);
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
+    const user = await getOrCreateUser(tg_id);
 
     const updated = await updateUserCoins(tg_id, amount);
-    
+
     res.json({
       coins: updated.coins,
       message: `Added ${amount} coins`

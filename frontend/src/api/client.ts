@@ -1,4 +1,5 @@
-const API_BASE_URL = (import.meta.env.VITE_API_URL as string) || 'http://localhost:8080/api';
+// Use relative URLs to work with the same domain/server
+const API_BASE_URL = '/api';
 
 export async function getBalance(tgId: number) {
   const response = await fetch(`${API_BASE_URL}/balance?tg_id=${tgId}`);
